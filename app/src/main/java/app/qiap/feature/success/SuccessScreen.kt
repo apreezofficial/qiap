@@ -28,7 +28,7 @@ import app.qiap.core.designsystem.theme.riseIn
 
 /** Success (design.md §7): the seal slams in, then the copy and stats rise in after it. */
 @Composable
-fun SuccessScreen(onDone: () -> Unit) {
+fun SuccessScreen(reps: Int, seconds: Int, streak: Int, best: Int, onDone: () -> Unit) {
     val colors = QiapTheme.colors
     val type = QiapTheme.type
     QiapScreen(
@@ -52,18 +52,25 @@ fun SuccessScreen(onDone: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(top = QiapSpacing.xs).riseIn(600),
         )
         Row(Modifier.riseIn(750), horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
-            Stat("Reps", "12", Modifier.weight(1f))
-            Stat("Time", "0:48", Modifier.weight(1f))
-            Stat("Good form", "92%", Modifier.weight(1f))
+            Stat("Reps", "$reps", Modifier.weight(1f))
+            Stat("Time", "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}", Modifier.weight(1f))
+            Stat("Best streak", "$best", Modifier.weight(1f))
         }
         QiapCard(Modifier.riseIn(900), size = CardSize.Small) {
             Row(horizontalArrangement = Arrangement.spacedBy(QiapSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
                 IconTile(QiapIcons.Flame, null, background = colors.saffronTint())
                 Column(Modifier.weight(1f)) {
-                    QiapText("7-day streak", style = type.title)
-                    QiapText("4 more to beat your best", style = type.caption, color = colors.ink3)
+                    QiapText(if (streak == 1) "First seal of a streak" else "$streak-day streak", style = type.title)
+                    QiapText(
+                        when {
+                            streak >= best -> "Your best yet."
+                            else -> "${best - streak} more to beat your best"
+                        },
+                        style = type.caption,
+                        color = colors.ink3,
+                    )
                 }
-                QiapText("7", style = type.displayCompact.copy(fontSize = 30.sp, lineHeight = 32.sp))
+                QiapText("$streak", style = type.displayCompact.copy(fontSize = 30.sp, lineHeight = 32.sp))
             }
         }
     }

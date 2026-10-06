@@ -46,7 +46,8 @@ import app.qiap.feature.workout.WorkoutScreen
 import kotlinx.serialization.Serializable
 
 @Serializable data object HomeRoute : NavKey
-@Serializable data object EditorRoute : NavKey
+/** [alarmId] null = new alarm. */
+@Serializable data class EditorRoute(val alarmId: Int? = null) : NavKey
 @Serializable data object LibraryRoute : NavKey
 @Serializable data object RingingRoute : NavKey
 @Serializable data object WorkoutRoute : NavKey
@@ -78,14 +79,15 @@ fun QiapNavHost() {
                 entry<HomeRoute> {
                     QiapTheme {
                         HomeScreen(
+                            onEditAlarm = { id -> backStack.add(EditorRoute(id)) },
                             onPreviewRinging = { backStack.add(RingingRoute) },
                             onOpenSettings = { backStack.add(SettingsRoute) },
                         )
                     }
                 }
-                entry<EditorRoute> {
+                entry<EditorRoute> { route ->
                     QiapTheme {
-                        EditorScreen(onBack = backStack::pop, onSeeAllExercises = { backStack.switchTab(LibraryRoute) })
+                        EditorScreen(route.alarmId, onDone = backStack::pop, onSeeAllExercises = { backStack.switchTab(LibraryRoute) })
                     }
                 }
                 entry<LibraryRoute> {
@@ -98,22 +100,25 @@ fun QiapNavHost() {
                     QiapTheme {
                         SettingsScreen(
                             onBack = backStack::pop,
-                            onTestAlarm = { backStack.add(RingingRoute) },
                             onOpenGallery = if (BuildConfig.DEBUG) ({ backStack.add(GalleryRoute) }) else null,
                         )
                     }
                 }
                 entry<RingingRoute> {
                     QiapTheme(QiapThemeVariant.Ringing) {
-                        // Workout replaces Ringing: there is no way back to a silenced alarm.
-                        RingingScreen(onStartWorkout = { backStack.replaceTop(WorkoutRoute) })
+                        // In-app preview only (no sound, nothing logged). Real alarms ring in RingingActivity.
+                        RingingScreen(
+                            hour = 6, minute = 30, label = "Preview", exerciseId = "squat", exerciseUnit = "squats", target = 12,
+                            onStartWorkout = { backStack.replaceTop(WorkoutRoute) },
+                            onFallback = backStack::pop,
+                        )
                     }
                 }
                 entry<WorkoutRoute> {
-                    QiapTheme(QiapThemeVariant.Night) { WorkoutScreen(onComplete = { backStack.replaceTop(SuccessRoute) }) }
+                    QiapTheme(QiapThemeVariant.Night) { WorkoutScreen(onComplete = { _, _ -> backStack.replaceTop(SuccessRoute) }) }
                 }
                 entry<SuccessRoute> {
-                    QiapTheme { SuccessScreen(onDone = { backStack.switchTab(HomeRoute) }) }
+                    QiapTheme { SuccessScreen(reps = 12, seconds = 48, streak = 1, best = 1, onDone = { backStack.switchTab(HomeRoute) }) }
                 }
                 // Constant-false in release, so R8 drops the gallery entirely.
                 if (BuildConfig.DEBUG) {
@@ -141,7 +146,7 @@ fun QiapNavHost() {
                         onSelect = { i -> backStack.switchTab(TopLevelRoutes[i]) },
                     )
                     if (top == HomeRoute) {
-                        PillButton("New", onClick = { backStack.add(EditorRoute) }, leadingIcon = QiapIcons.Plus)
+                        PillButton("New", onClick = { backStack.add(EditorRoute()) }, leadingIcon = QiapIcons.Plus)
                     }
                 }
             }

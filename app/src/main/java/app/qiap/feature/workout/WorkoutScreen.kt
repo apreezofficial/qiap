@@ -73,6 +73,8 @@ import app.qiap.core.designsystem.theme.QiapRadius
 import app.qiap.core.designsystem.theme.QiapSpacing
 import app.qiap.core.designsystem.theme.QiapTheme
 import app.qiap.exercise.ExerciseCatalog
+import app.qiap.exercise.ExerciseSpec
+import app.qiap.feature.pictogramFor
 import app.qiap.pose.PoseEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -83,15 +85,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private const val TARGET = 12
-
 /**
  * Workout (design.md §7), Night theme. With camera permission: live CameraX preview, MediaPipe
  * skeleton overlay and real rep counting. Without it (or if the pose engine fails to load): a
  * demo stand-in, so the flow is never a dead end. Nothing over the camera is glass or blurred.
  */
 @Composable
-fun WorkoutScreen(onComplete: () -> Unit) {
+fun WorkoutScreen(
+    onComplete: (reps: Int, seconds: Int) -> Unit,
+    exercise: ExerciseSpec = ExerciseCatalog.Squat,
+    target: Int = 12,
+) {
     val context = LocalContext.current
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
@@ -104,9 +108,11 @@ fun WorkoutScreen(onComplete: () -> Unit) {
     LaunchedEffect(Unit) { if (!granted && !asked) launcher.launch(Manifest.permission.CAMERA) }
 
     if (granted) {
-        LiveWorkout(onComplete)
+        LiveWorkout(exercise, target, onComplete)
     } else {
         DemoWorkout(
+            exercise = exercise,
+            target = target,
             onComplete = onComplete,
             notice = if (asked) "Camera is off, so this is a demo." else null,
             onAllowCamera = {
@@ -130,11 +136,13 @@ private sealed interface EngineState {
 }
 
 @Composable
-private fun LiveWorkout(onComplete: () -> Unit) {
+private fun LiveWorkout(exercise: ExerciseSpec, target: Int, onComplete: (Int, Int) -> Unit) {
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val container = remember { (context.applicationContext as QiapApp).container }
-    val session = remember { PoseSession(ExerciseCatalog.Squat) }
+    val session = remember(exercise) { PoseSession(exercise) }
+    var seconds by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { delay(1000); seconds++ } }
     val done by rememberUpdatedState(onComplete)
 
     // Model load + GPU init take a few hundred ms: off the main thread, closed on leave.
@@ -156,22 +164,20 @@ private fun LiveWorkout(onComplete: () -> Unit) {
     }
 
     LaunchedEffect(session.reps) {
-        if (session.reps >= TARGET) {
+        if (session.reps >= target) {
             delay(500)
-            done()
+            done(session.reps, seconds)
         }
     }
 
     when (val s = state) {
-        is EngineState.Failed -> DemoWorkout(onComplete, notice = "Rep counting couldn't start: ${s.reason}", onAllowCamera = null)
+        is EngineState.Failed -> DemoWorkout(exercise, target, onComplete, notice = "Rep counting couldn't start: ${s.reason}", onAllowCamera = null)
         EngineState.Loading -> CameraStage { QiapText("Waking up the camera…", style = QiapTheme.type.caption, color = QiapTheme.colors.ink3, modifier = Modifier.align(Alignment.Center)) }
         is EngineState.Ready -> {
             val camera = remember(s.engine) { PoseCamera(context, s.engine) }
             LaunchedEffect(camera, owner) { camera.run(owner) }
             val request by camera.surfaceRequest.collectAsStateWithLifecycle()
             val mirrored by camera.mirrored.collectAsStateWithLifecycle()
-            var seconds by rememberSaveable { mutableIntStateOf(0) }
-            LaunchedEffect(Unit) { while (true) { delay(1000); seconds++ } }
 
             CameraStage {
                 request?.let {
@@ -179,6 +185,8 @@ private fun LiveWorkout(onComplete: () -> Unit) {
                 }
                 SkeletonOverlay(session, mirrored, Modifier.fillMaxSize())
                 WorkoutHud(
+                    exercise = exercise,
+                    target = target,
                     reps = session.reps,
                     seconds = seconds,
                     cue = session.cue,
@@ -222,25 +230,31 @@ private fun RowScope.FixtureRecorder(session: PoseSession) {
 
 /** Stand-in when there's no camera: a looping skeleton that counts one rep per cycle. */
 @Composable
-private fun DemoWorkout(onComplete: () -> Unit, notice: String?, onAllowCamera: (() -> Unit)?) {
+private fun DemoWorkout(
+    exercise: ExerciseSpec,
+    target: Int,
+    onComplete: (Int, Int) -> Unit,
+    notice: String?,
+    onAllowCamera: (() -> Unit)?,
+) {
     val colors = QiapTheme.colors
     var reps by rememberSaveable { mutableIntStateOf(0) }
     var seconds by rememberSaveable { mutableIntStateOf(0) }
     val done by rememberUpdatedState(onComplete)
     LaunchedEffect(Unit) {
-        while (reps < TARGET) {
-            delay(Pictograms.Squat.periodMs.toLong())
-            if (reps < TARGET) reps++
+        while (reps < target) {
+            delay(pictogramFor(exercise.id).periodMs.toLong())
+            if (reps < target) reps++
         }
         delay(500)
-        done()
+        done(reps, seconds)
     }
     LaunchedEffect(Unit) { while (true) { delay(1000); seconds++ } }
     val offForm = reps % 4 == 2
 
     CameraStage(standIn = true) {
         Pictogram(
-            Pictograms.Squat,
+            pictogramFor(exercise.id),
             Modifier.align(Alignment.TopCenter).padding(top = 120.dp).size(300.dp),
             color = colors.ink,
             showFloor = false,
@@ -257,14 +271,16 @@ private fun DemoWorkout(onComplete: () -> Unit, notice: String?, onAllowCamera: 
             }
         }
         WorkoutHud(
+            exercise = exercise,
+            target = target,
             reps = reps,
             seconds = seconds,
-            cue = if (offForm) "Go a little lower" else null,
+            cue = if (offForm) exercise.depthCue else null,
             offForm = offForm,
             stats = "Demo",
             footer = {
                 QiapText(PRIVACY, style = QiapTheme.type.caption, color = colors.ink3, modifier = Modifier.weight(1f))
-                Chip("+1 rep", onClick = { if (reps < TARGET) reps++ })
+                Chip("+1 rep", onClick = { if (reps < target) reps++ })
             },
         )
     }
@@ -282,6 +298,8 @@ private fun CameraStage(standIn: Boolean = false, content: @Composable BoxScope.
 /** Top: proof timer + exercise chip (+ debug stats). Bottom: cue, giant rep count, progress, footer. All opaque. */
 @Composable
 private fun BoxScope.WorkoutHud(
+    exercise: ExerciseSpec,
+    target: Int,
     reps: Int,
     seconds: Int,
     cue: String?,
@@ -316,7 +334,7 @@ private fun BoxScope.WorkoutHud(
                     style = type.numeric.copy(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold),
                 )
             }
-            Chip("Squat", leading = { Pictogram(Pictograms.Squat, Modifier.size(18.dp), showFloor = false) })
+            Chip(exercise.name, leading = { Pictogram(pictogramFor(exercise.id), Modifier.size(18.dp), showFloor = false) })
         }
         if (stats != null) {
             QiapText(
@@ -346,13 +364,13 @@ private fun BoxScope.WorkoutHud(
                 },
             )
             QiapText(
-                "/ $TARGET",
+                "/ $target",
                 style = type.displayCompact.copy(fontSize = 28.sp, lineHeight = 28.sp),
                 color = colors.ink3,
                 modifier = Modifier.padding(bottom = 14.dp),
             )
         }
-        QiapProgressBar(reps / TARGET.toFloat())
+        QiapProgressBar(reps / target.toFloat())
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs), content = footer)
     }
 }

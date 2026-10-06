@@ -60,6 +60,8 @@ dependencies {
     implementation(libs.androidx.navigation3.ui)
     // Required by Navigation 3 to save/restore typed route keys.
     implementation(libs.kotlinx.serialization.core)
+    // Alarms and history are persisted as small JSON files (no database needed for a handful of rows).
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.profileinstaller)
 
     implementation(platform(libs.androidx.compose.bom))

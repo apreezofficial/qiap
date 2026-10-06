@@ -11,16 +11,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import app.qiap.QiapApp
+import app.qiap.alarm.Alarm
+import app.qiap.alarm.nextTrigger
 import app.qiap.core.common.formatCountdown
-import app.qiap.core.common.minutesUntil
 import app.qiap.core.designsystem.component.CardSize
 import app.qiap.core.designsystem.component.Chip
 import app.qiap.core.designsystem.component.ExercisePickerItem
@@ -28,59 +30,83 @@ import app.qiap.core.designsystem.component.HairlineDivider
 import app.qiap.core.designsystem.component.IconTile
 import app.qiap.core.designsystem.component.ListRow
 import app.qiap.core.designsystem.component.PillButton
+import app.qiap.core.designsystem.component.PillButtonStyle
 import app.qiap.core.designsystem.component.QiapCard
-import app.qiap.core.designsystem.component.QiapIcon
 import app.qiap.core.designsystem.component.QiapScreen
 import app.qiap.core.designsystem.component.QiapSlider
 import app.qiap.core.designsystem.component.QiapStepper
 import app.qiap.core.designsystem.component.QiapText
-import app.qiap.core.designsystem.component.QiapToggle
-import app.qiap.core.designsystem.component.SegmentedTabs
 import app.qiap.core.designsystem.component.TimeWheel
 import app.qiap.core.designsystem.icon.QiapIcons
 import app.qiap.core.designsystem.theme.QiapSpacing
 import app.qiap.core.designsystem.theme.QiapTheme
 import app.qiap.core.designsystem.theme.bleedHorizontal
+import app.qiap.exercise.ExerciseCatalog
 import app.qiap.feature.home.NavClearance
-import app.qiap.feature.sample.SampleData
-import java.time.LocalTime
+import app.qiap.feature.pictogramFor
+import java.time.Duration
+import java.time.ZonedDateTime
 
 private val DayNames = listOf("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
 
-/** Alarm editor (design.md §7). Saving is a no-op until the alarm store exists. */
+/**
+ * Alarm editor (design.md §7). [alarmId] null = new alarm. Save writes the store and arms the
+ * alarm immediately; no days selected means a one-shot alarm.
+ */
 @Composable
-fun EditorScreen(onBack: () -> Unit, onSeeAllExercises: () -> Unit) {
+fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Unit) {
     val colors = QiapTheme.colors
-    var hour by rememberSaveable { mutableIntStateOf(6) }
-    var minute by rememberSaveable { mutableIntStateOf(30) }
-    val days = remember { mutableStateListOf(true, true, true, true, true, false, false) }
-    var exercise by rememberSaveable { mutableIntStateOf(0) }
-    var target by rememberSaveable { mutableIntStateOf(12) }
-    var volume by rememberSaveable { mutableFloatStateOf(0.8f) }
-    var snooze by rememberSaveable { mutableIntStateOf(0) }
-    var proof by rememberSaveable { mutableStateOf(true) }
-    val chosen = SampleData.exercises[exercise]
-    val countdown = formatCountdown(minutesUntil(LocalTime.now(), hour, minute))
+    val context = LocalContext.current
+    val container = remember { (context.applicationContext as QiapApp).container }
+    val existing = remember(alarmId) { alarmId?.let { container.alarmStore.get(it) } }
+    val start = existing ?: Alarm(id = 0, hour = 6, minute = 30, days = Alarm.WEEKDAYS)
+
+    var hour by rememberSaveable { mutableIntStateOf(start.hour) }
+    var minute by rememberSaveable { mutableIntStateOf(start.minute) }
+    var days by rememberSaveable { mutableIntStateOf(start.days) }
+    var exerciseId by rememberSaveable { mutableStateOf(start.exerciseId) }
+    var target by rememberSaveable { mutableIntStateOf(start.target) }
+    var volume by rememberSaveable { mutableFloatStateOf(start.volume) }
+    val spec = ExerciseCatalog.byId(exerciseId) ?: ExerciseCatalog.Squat
+
+    val draft = start.copy(hour = hour, minute = minute, days = days, exerciseId = spec.id, target = target, volume = volume, enabled = true)
+    val now = ZonedDateTime.now()
+    val inMinutes = ((Duration.between(now, nextTrigger(draft, now)).seconds + 59) / 60).toInt()
 
     QiapScreen(
-        title = "New alarm",
-        onBack = onBack,
-        actions = { Chip("Cancel", onClick = onBack) },
+        title = if (existing == null) "New alarm" else "Edit alarm",
+        onBack = onDone,
+        actions = { Chip("Cancel", onClick = onDone) },
         bottomClearance = NavClearance,
-        bottomBar = { PillButton("Save · rings in $countdown", onClick = onBack, modifier = Modifier.fillMaxWidth()) },
+        bottomBar = {
+            PillButton("Save · rings in ${formatCountdown(inMinutes)}", modifier = Modifier.fillMaxWidth(), onClick = {
+                val saved = container.alarmStore.upsert(draft)
+                container.alarmScheduler.sync(saved)
+                onDone()
+            })
+        },
     ) {
+        // Wheel only reports when it settles, so it starts from the stored time.
         TimeWheel(hour, minute, onChange = { h, m -> hour = h; minute = m })
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xxs)) {
-            DayNames.forEachIndexed { i, d ->
-                Chip(d, selected = days[i], onClick = { days[i] = !days[i] }, modifier = Modifier.weight(1f))
+        Column(verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xxs)) {
+                DayNames.forEachIndexed { i, d ->
+                    val bit = 1 shl i
+                    Chip(d, selected = days and bit != 0, onClick = { days = days xor bit }, modifier = Modifier.weight(1f))
+                }
             }
+            QiapText(
+                if (days == 0) "No days picked: rings once, then turns itself off." else "Repeats on the picked days.",
+                style = QiapTheme.type.caption,
+                color = colors.ink3,
+            )
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 QiapText("Exercise", style = QiapTheme.type.title)
-                Chip("See all 52", onClick = onSeeAllExercises)
+                Chip("Browse library", onClick = onSeeAllExercises)
             }
             Row(
                 Modifier
@@ -89,11 +115,9 @@ fun EditorScreen(onBack: () -> Unit, onSeeAllExercises: () -> Unit) {
                     .padding(horizontal = QiapSpacing.md, vertical = QiapSpacing.xs),
                 horizontalArrangement = Arrangement.spacedBy(QiapSpacing.sm),
             ) {
-                SampleData.exercises.forEachIndexed { i, ex ->
-                    ExercisePickerItem(ex.name, ex.motion, selected = i == exercise, phase = i * 0.17f, onClick = {
-                        exercise = i
-                        target = if (ex.unit == "seconds" || ex.unit == "jacks" || ex.unit == "knees") 30 else 12
-                    })
+                // Only exercises the rep counter can actually verify are offered for alarms.
+                ExerciseCatalog.all.forEachIndexed { i, ex ->
+                    ExercisePickerItem(ex.name, pictogramFor(ex.id), selected = ex.id == spec.id, phase = i * 0.17f, onClick = { exerciseId = ex.id })
                 }
             }
         }
@@ -101,7 +125,7 @@ fun EditorScreen(onBack: () -> Unit, onSeeAllExercises: () -> Unit) {
         QiapCard(size = CardSize.Small, verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
             ListRow(
                 "Target",
-                subtitle = "${chosen.unit} to stop the alarm",
+                subtitle = "${spec.unit} to stop the alarm",
                 trailing = {
                     QiapStepper(
                         target,
@@ -113,10 +137,8 @@ fun EditorScreen(onBack: () -> Unit, onSeeAllExercises: () -> Unit) {
             HairlineDivider()
             ListRow(
                 "Sound",
-                subtitle = "Sunrise chime",
+                subtitle = "Your phone's alarm sound",
                 leading = { IconTile(QiapIcons.Music, null, size = 40.dp, background = colors.bgWash) },
-                trailing = { QiapIcon(QiapIcons.ChevronRight, null, tint = colors.ink3) },
-                onClick = {},
             )
             HairlineDivider()
             Column(Modifier.padding(top = QiapSpacing.xs)) {
@@ -124,20 +146,16 @@ fun EditorScreen(onBack: () -> Unit, onSeeAllExercises: () -> Unit) {
                     QiapText("Volume", style = QiapTheme.type.title)
                     QiapText("Ramps up over 30 s", style = QiapTheme.type.caption, color = colors.ink3)
                 }
-                QiapSlider(volume, { volume = it }, "Alarm volume")
+                QiapSlider(volume, { volume = it.coerceAtLeast(0.1f) }, "Alarm volume")
             }
-            HairlineDivider()
-            Column(Modifier.padding(vertical = QiapSpacing.xs), verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
-                QiapText("Snooze", style = QiapTheme.type.title)
-                SegmentedTabs(listOf("None", "Once", "3 times"), snooze, { snooze = it }, fillWidth = true)
-            }
-            HairlineDivider()
-            ListRow(
-                "Video proof",
-                subtitle = "Saved on this phone only",
-                leading = { IconTile(QiapIcons.Video, null, size = 40.dp, background = colors.bgWash) },
-                trailing = { QiapToggle(proof, { proof = it }, "Video proof") },
-            )
+        }
+
+        if (existing != null) {
+            PillButton("Delete alarm", style = PillButtonStyle.Secondary, modifier = Modifier.fillMaxWidth(), onClick = {
+                container.alarmScheduler.cancel(existing.id)
+                container.alarmStore.delete(existing.id)
+                onDone()
+            })
         }
     }
 }

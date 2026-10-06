@@ -1,16 +1,36 @@
 package app.qiap.feature.ringing
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,25 +43,39 @@ import app.qiap.core.designsystem.component.QiapText
 import app.qiap.core.designsystem.component.TwoToneHeadline
 import app.qiap.core.designsystem.icon.QiapIcons
 import app.qiap.core.designsystem.pictogram.Pictogram
-import app.qiap.core.designsystem.pictogram.Pictograms
+import app.qiap.core.designsystem.theme.QiapRadius
 import app.qiap.core.designsystem.theme.QiapSpacing
 import app.qiap.core.designsystem.theme.QiapTheme
+import app.qiap.feature.pictogramFor
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+private const val HOLD_MS = 3000
+
 /**
  * Full-bleed Cinnabar, giant ink time, pulsing sun, one white pill (design.md §7).
- * UI shell only: no audio, lock-screen flags or fallback yet (alarm engine phase).
+ * The fallback is hidden behind a deliberate 3 s hold, so a sleepy thumb can't hit it by accident.
  */
 @Composable
-fun RingingScreen(onStartWorkout: () -> Unit) {
+fun RingingScreen(
+    hour: Int,
+    minute: Int,
+    label: String,
+    exerciseId: String,
+    exerciseUnit: String,
+    target: Int,
+    onStartWorkout: () -> Unit,
+    onFallback: () -> Unit,
+) {
     val colors = QiapTheme.colors
-    val (time, _) = twelveHour(6, 30)
+    val (time, _) = twelveHour(hour, minute)
     val date = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()))
 
     QiapScreen(
-        bottomClearance = 140.dp,
+        bottomClearance = 150.dp,
         bottomBar = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(QiapSpacing.sm)) {
                 PillButton(
@@ -51,12 +85,12 @@ fun RingingScreen(onStartWorkout: () -> Unit) {
                     leadingIcon = QiapIcons.Play,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                QiapText("Can't do it today? Hold here for 3 s", style = QiapTheme.type.caption, color = colors.ink2)
+                HoldToSkip(onFallback)
             }
         },
     ) {
         QiapText(
-            "$date · Weekdays",
+            if (label.isBlank()) date else "$date · $label",
             style = QiapTheme.type.label,
             color = colors.ink2,
             textAlign = TextAlign.Center,
@@ -68,13 +102,57 @@ fun RingingScreen(onStartWorkout: () -> Unit) {
         }
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             TwoToneHeadline(
-                "12 squats",
+                "$target $exerciseUnit",
                 "to silence me.",
                 style = QiapTheme.type.h2.copy(fontSize = 26.sp, lineHeight = 30.sp),
                 textAlign = TextAlign.Center,
                 breakLine = true,
             )
-            Pictogram(Pictograms.Squat, Modifier.padding(top = QiapSpacing.xs).size(96.dp), color = colors.ink)
+            Pictogram(pictogramFor(exerciseId), Modifier.padding(top = QiapSpacing.xs).size(96.dp), color = colors.ink)
         }
+    }
+}
+
+/** A quiet pill that fills while held; releasing early cancels. Haptic tick on completion. */
+@Composable
+private fun HoldToSkip(onFallback: () -> Unit) {
+    val colors = QiapTheme.colors
+    val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    val progress = remember { Animatable(0f) }
+    val fire by rememberUpdatedState(onFallback)
+    Box(
+        Modifier
+            .fillMaxWidth(0.8f)
+            .height(40.dp)
+            .clip(QiapRadius.pill)
+            .background(Color(0x1F111114))
+            .semantics {
+                contentDescription = "Can't do it today? Hold for 3 seconds to stop without the workout"
+                onLongClick { fire(); true }
+            }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown()
+                    scope.launch { progress.animateTo(1f, tween((HOLD_MS * (1f - progress.value)).toInt(), easing = LinearEasing)) }
+                    val released = withTimeoutOrNull(HOLD_MS.toLong()) { waitForUpOrCancellation() }
+                    if (released == null) {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        fire()
+                    } else {
+                        scope.launch { progress.animateTo(0f, tween(200)) }
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .align(Alignment.CenterStart)
+                .fillMaxHeight()
+                .fillMaxWidth(progress.value)
+                .background(Color(0x33111114)),
+        )
+        QiapText("Can't do it today? Hold for 3 s", style = QiapTheme.type.caption, color = colors.ink)
     }
 }

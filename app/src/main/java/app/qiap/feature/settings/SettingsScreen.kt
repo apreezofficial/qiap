@@ -1,5 +1,7 @@
 package app.qiap.feature.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,12 +13,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import app.qiap.QiapApp
+import app.qiap.alarm.Check
 import app.qiap.core.designsystem.component.CardSize
 import app.qiap.core.designsystem.component.CardTone
 import app.qiap.core.designsystem.component.Chip
@@ -39,38 +45,43 @@ import app.qiap.core.designsystem.theme.QiapSpacing
 import app.qiap.core.designsystem.theme.QiapTheme
 import kotlinx.coroutines.delay
 
-private data class Permission(val icon: ImageVector, val title: String, val why: String)
-
-private val Permissions = listOf(
-    Permission(QiapIcons.Zap, "Exact alarms", "Ring at 6:30, not \"around then\""),
-    Permission(QiapIcons.Layers, "Full-screen alert", "Show over the lock screen"),
-    Permission(QiapIcons.Battery, "Battery unrestricted", "Stop Android pausing Qiap overnight"),
-    Permission(QiapIcons.Camera, "Camera", "Count reps. Video never leaves the phone"),
+private val CheckIcons: Map<Check, ImageVector> = mapOf(
+    Check.EXACT_ALARMS to QiapIcons.Zap,
+    Check.NOTIFICATIONS to QiapIcons.Bell,
+    Check.FULL_SCREEN to QiapIcons.Layers,
+    Check.BATTERY to QiapIcons.Battery,
+    Check.CAMERA to QiapIcons.Camera,
 )
 
+private const val TEST_DELAY_S = 10
+
 /**
- * Setup / onboarding (design.md §7). Permission states are sample values until the alarm engine
- * can read the real ones. "Test alarm" counts down 10 s then opens Ringing. [onOpenGallery] is
- * null in release builds.
+ * Setup (design.md §7): live status of everything an alarm needs, each with a one-tap fix, and a
+ * real "Test alarm in 10 s" that goes through AlarmManager exactly like a normal alarm.
+ * [onOpenGallery] is null in release builds.
  */
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onTestAlarm: () -> Unit, onOpenGallery: (() -> Unit)?) {
+fun SettingsScreen(onBack: () -> Unit, onOpenGallery: (() -> Unit)?) {
     val colors = QiapTheme.colors
     val type = QiapTheme.type
-    var batteryAllowed by remember { mutableStateOf(false) }
-    var testing by remember { mutableStateOf(false) }
-    var left by remember { mutableIntStateOf(10) }
-    val ring by rememberUpdatedState(onTestAlarm)
-    LaunchedEffect(testing) {
-        if (!testing) return@LaunchedEffect
-        left = 10
-        while (left > 0) {
-            delay(1000)
-            left--
-        }
-        testing = false
-        ring()
+    val context = LocalContext.current
+    val container = remember { (context.applicationContext as QiapApp).container }
+    val reliability = container.reliability
+    var status by remember { mutableStateOf(reliability.status()) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { status = reliability.status() }
+    val askPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        status = reliability.status()
     }
+
+    var testLeft by remember { mutableIntStateOf(0) }
+    LaunchedEffect(testLeft > 0) {
+        while (testLeft > 0) {
+            delay(1000)
+            testLeft--
+        }
+    }
+    val ready = status.filterKeys { it.required }.count { it.value }
+    val requiredCount = status.keys.count { it.required }
 
     QiapScreen(
         title = "Setup",
@@ -78,28 +89,46 @@ fun SettingsScreen(onBack: () -> Unit, onTestAlarm: () -> Unit, onOpenGallery: (
         bottomClearance = 112.dp,
         bottomBar = {
             PillButton(
-                if (testing) "Ringing in $left…" else "Test alarm in 10 s",
-                onClick = { testing = true },
+                if (testLeft > 0) "Ringing in $testLeft… lock your phone" else "Test alarm in $TEST_DELAY_S s",
                 leadingIcon = QiapIcons.Bell,
                 modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    if (testLeft == 0) {
+                        container.alarmScheduler.scheduleTest(TEST_DELAY_S * 1000L, exerciseId = "squat", target = 5)
+                        testLeft = TEST_DELAY_S
+                    }
+                },
             )
         },
     ) {
-        StepDots(count = 4, current = 2)
+        StepDots(count = requiredCount, current = (ready - 1).coerceAtLeast(0))
         TwoToneHeadline("Let me make sure", "I can actually wake you.")
-        QiapText("Android loves killing alarms. Four switches stop that.", style = type.bodySmall, color = colors.ink2)
+        QiapText(
+            if (ready == requiredCount) "All set. Run a test to hear it." else "Android loves killing alarms. These switches stop that.",
+            style = type.bodySmall,
+            color = colors.ink2,
+        )
 
         QiapCard(size = CardSize.Small, verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
-            Permissions.forEachIndexed { i, p ->
+            Check.entries.forEachIndexed { i, check ->
                 if (i > 0) HairlineDivider()
-                val ok = p.icon != QiapIcons.Battery || batteryAllowed
+                val ok = status[check] == true
                 ListRow(
-                    p.title,
-                    subtitle = p.why,
-                    leading = { IconTile(p.icon, null, size = 40.dp, background = if (ok) colors.jadeTint() else colors.saffronTint()) },
+                    check.title + if (check.required) "" else " (recommended)",
+                    subtitle = check.why,
+                    leading = {
+                        IconTile(CheckIcons.getValue(check), null, size = 40.dp, background = if (ok) colors.jadeTint() else colors.saffronTint())
+                    },
                     trailing = {
-                        if (ok) QiapIcon(QiapIcons.Check, "Allowed", tint = colors.jade)
-                        else Chip("Allow", selected = true, onClick = { batteryAllowed = true })
+                        if (ok) {
+                            QiapIcon(QiapIcons.Check, "Allowed", tint = colors.jade)
+                        } else {
+                            Chip("Allow", selected = true, onClick = {
+                                val permission = reliability.runtimePermission(check)
+                                if (permission != null) askPermission.launch(permission)
+                                else context.startActivity(reliability.settingsIntent(check))
+                            })
+                        }
                     },
                 )
             }
@@ -111,7 +140,7 @@ fun SettingsScreen(onBack: () -> Unit, onTestAlarm: () -> Unit, onOpenGallery: (
                 Column(Modifier.weight(1f)) {
                     QiapText("Can't do it one morning?", style = type.title)
                     QiapText(
-                        "A fallback stops the alarm. You get a saffron-edged seal, no judgement.",
+                        "Hold the button on the alarm for 3 s. It stops, and you get a saffron-edged seal. No judgement.",
                         style = type.caption,
                         color = colors.ink2,
                     )

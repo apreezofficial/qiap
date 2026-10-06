@@ -3,6 +3,11 @@
 
     <!-- v1 is fully on-device: no INTERNET permission, by design. -->
 
+    <!-- Rep counting reads the front camera on-device. Frames never leave the phone. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Not required so the app (and its alarm) still installs on devices without one. -->
+    <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+
     <application
         android:name=".QiapApp"
         android:allowBackup="false"

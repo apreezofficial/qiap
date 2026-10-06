@@ -1,6 +1,8 @@
 package app.qiap.di
 
 import android.content.Context
+import app.qiap.pose.MediaPipePoseEngine
+import app.qiap.pose.PoseEngine
 import java.time.Clock
 
 /**
@@ -12,4 +14,10 @@ class AppContainer(context: Context) {
 
     /** Injected everywhere time matters so alarm math is testable. */
     val clock: Clock = Clock.systemDefaultZone()
+
+    /**
+     * A new pose engine per workout (it holds the model and GPU context, so it's closed when the
+     * workout ends rather than kept alive). Slow: call off the main thread.
+     */
+    fun createPoseEngine(): PoseEngine = MediaPipePoseEngine.create(appContext)
 }

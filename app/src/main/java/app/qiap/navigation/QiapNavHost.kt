@@ -87,7 +87,10 @@ fun QiapNavHost() {
                 entry<WorkoutRoute> {
                     QiapTheme(QiapThemeVariant.Night) { WorkoutScreen(onFinish = backStack::pop) }
                 }
-                entry<GalleryRoute> { QiapTheme { DesignGalleryScreen(onBack = backStack::pop) } }
+                // Constant-false in release, so R8 drops the gallery entirely.
+                if (BuildConfig.DEBUG) {
+                    entry<GalleryRoute> { QiapTheme { DesignGalleryScreen(onBack = backStack::pop) } }
+                }
             },
         )
 

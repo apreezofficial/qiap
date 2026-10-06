@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- v1 is fully on-device: no INTERNET permission, by design. -->
+    <!-- v1 is fully on-device: no INTERNET permission, by design.
+         MediaPipe Tasks pulls in Google's datatransport library to upload usage stats, and that
+         library's manifest requests network access. Strip it: without INTERNET the upload fails
+         with an IOException that datatransport catches and retries later, so nothing is sent and
+         nothing crashes. CI fails the build if INTERNET ever reappears. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
     <!-- Rep counting reads the front camera on-device. Frames never leave the phone. -->
     <uses-permission android:name="android.permission.CAMERA" />

@@ -58,12 +58,14 @@ fun TwoToneHeadline(
     modifier: Modifier = Modifier,
     style: TextStyle = QiapTheme.type.h2,
     textAlign: TextAlign = TextAlign.Unspecified,
+    /** Put the gray phrase on its own line. */
+    breakLine: Boolean = false,
 ) {
     val colors = QiapTheme.colors
     BasicText(
         text = buildAnnotatedString {
             withStyle(SpanStyle(color = colors.ink)) { append(lead) }
-            append(' ')
+            append(if (breakLine) '\n' else ' ')
             withStyle(SpanStyle(color = colors.ink2)) { append(accent) }
         },
         modifier = modifier,
@@ -89,11 +91,12 @@ fun QiapIcon(
 }
 
 /**
- * The single soft background effect (design.md §9): a pale sky arch rising from the bottom edge.
- * Brush is built once per size; turn it off globally with [LocalWashEnabled].
+ * The single soft background effect (design.md §9): a pale sky arch rising from the bottom edge,
+ * or hanging from the top with [fromTop] (screen headers). Brush is built once per size; turn it
+ * off globally with [LocalWashEnabled].
  */
 @Composable
-fun Modifier.skyWash(): Modifier {
+fun Modifier.skyWash(fromTop: Boolean = false): Modifier {
     if (!LocalWashEnabled.current) return this
     val colors = QiapTheme.colors
     return drawWithCache {
@@ -101,8 +104,8 @@ fun Modifier.skyWash(): Modifier {
             0f to colors.bgWash2,
             0.55f to colors.bgWash,
             1f to colors.bgWash.copy(alpha = 0f),
-            center = Offset(size.width / 2f, size.height),
-            radius = maxOf(size.width * 0.85f, 1f),
+            center = Offset(size.width / 2f, if (fromTop) 0f else size.height),
+            radius = if (fromTop) maxOf(size.width * 1.1f, 1f) else maxOf(size.width * 0.85f, 1f),
         )
         onDrawBehind { drawRect(brush) }
     }

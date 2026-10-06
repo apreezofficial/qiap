@@ -1,12 +1,23 @@
 package app.qiap.navigation
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.NavBackStack
@@ -17,10 +28,12 @@ import androidx.navigation3.ui.NavDisplay
 import app.qiap.BuildConfig
 import app.qiap.core.designsystem.component.FloatingNavPill
 import app.qiap.core.designsystem.component.NavPillItem
+import app.qiap.core.designsystem.component.PillButton
 import app.qiap.core.designsystem.icon.QiapIcons
 import app.qiap.core.designsystem.theme.QiapSpacing
 import app.qiap.core.designsystem.theme.QiapTheme
 import app.qiap.core.designsystem.theme.QiapThemeVariant
+import app.qiap.core.designsystem.theme.qiapTween
 import app.qiap.feature.editor.EditorScreen
 import app.qiap.feature.gallery.DesignGalleryScreen
 import app.qiap.feature.history.HistoryScreen
@@ -28,6 +41,7 @@ import app.qiap.feature.home.HomeScreen
 import app.qiap.feature.library.LibraryScreen
 import app.qiap.feature.ringing.RingingScreen
 import app.qiap.feature.settings.SettingsScreen
+import app.qiap.feature.success.SuccessScreen
 import app.qiap.feature.workout.WorkoutScreen
 import kotlinx.serialization.Serializable
 
@@ -36,6 +50,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object LibraryRoute : NavKey
 @Serializable data object RingingRoute : NavKey
 @Serializable data object WorkoutRoute : NavKey
+@Serializable data object SuccessRoute : NavKey
 @Serializable data object HistoryRoute : NavKey
 @Serializable data object SettingsRoute : NavKey
 @Serializable data object GalleryRoute : NavKey
@@ -52,6 +67,8 @@ private val NavItems = listOf(
 @Composable
 fun QiapNavHost() {
     val backStack = rememberNavBackStack(HomeRoute)
+    // A screen overlay (exercise sheet) hides the nav so it never floats over the sheet.
+    var overlayOpen by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
         NavDisplay(
@@ -61,19 +78,27 @@ fun QiapNavHost() {
                 entry<HomeRoute> {
                     QiapTheme {
                         HomeScreen(
-                            onNewAlarm = { backStack.add(EditorRoute) },
                             onPreviewRinging = { backStack.add(RingingRoute) },
                             onOpenSettings = { backStack.add(SettingsRoute) },
                         )
                     }
                 }
-                entry<EditorRoute> { QiapTheme { EditorScreen(onBack = backStack::pop) } }
-                entry<LibraryRoute> { QiapTheme { LibraryScreen() } }
+                entry<EditorRoute> {
+                    QiapTheme {
+                        EditorScreen(onBack = backStack::pop, onSeeAllExercises = { backStack.switchTab(LibraryRoute) })
+                    }
+                }
+                entry<LibraryRoute> {
+                    QiapTheme {
+                        LibraryScreen(onTryIt = { backStack.add(WorkoutRoute) }, onOverlayChange = { overlayOpen = it })
+                    }
+                }
                 entry<HistoryRoute> { QiapTheme { HistoryScreen() } }
                 entry<SettingsRoute> {
                     QiapTheme {
                         SettingsScreen(
                             onBack = backStack::pop,
+                            onTestAlarm = { backStack.add(RingingRoute) },
                             onOpenGallery = if (BuildConfig.DEBUG) ({ backStack.add(GalleryRoute) }) else null,
                         )
                     }
@@ -85,7 +110,10 @@ fun QiapNavHost() {
                     }
                 }
                 entry<WorkoutRoute> {
-                    QiapTheme(QiapThemeVariant.Night) { WorkoutScreen(onFinish = backStack::pop) }
+                    QiapTheme(QiapThemeVariant.Night) { WorkoutScreen(onComplete = { backStack.replaceTop(SuccessRoute) }) }
+                }
+                entry<SuccessRoute> {
+                    QiapTheme { SuccessScreen(onDone = { backStack.switchTab(HomeRoute) }) }
                 }
                 // Constant-false in release, so R8 drops the gallery entirely.
                 if (BuildConfig.DEBUG) {
@@ -96,17 +124,26 @@ fun QiapNavHost() {
 
         val top = backStack.lastOrNull()
         val tabIndex = TopLevelRoutes.indexOf(top)
-        if (tabIndex >= 0) {
+        AnimatedVisibility(
+            visible = tabIndex >= 0 && !(overlayOpen && top == LibraryRoute),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(bottom = QiapSpacing.md),
+            enter = fadeIn(qiapTween()) + slideInVertically(qiapTween()) { it / 2 },
+            exit = fadeOut(qiapTween()) + slideOutVertically(qiapTween()) { it / 2 },
+        ) {
             QiapTheme {
-                FloatingNavPill(
-                    items = NavItems,
-                    selectedIndex = tabIndex,
-                    onSelect = { i -> backStack.switchTab(TopLevelRoutes[i]) },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                        .padding(bottom = QiapSpacing.md),
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
+                    FloatingNavPill(
+                        items = NavItems,
+                        selectedIndex = tabIndex.coerceAtLeast(0),
+                        onSelect = { i -> backStack.switchTab(TopLevelRoutes[i]) },
+                    )
+                    if (top == HomeRoute) {
+                        PillButton("New", onClick = { backStack.add(EditorRoute) }, leadingIcon = QiapIcons.Plus)
+                    }
+                }
             }
         }
     }
@@ -122,7 +159,7 @@ private fun NavBackStack<NavKey>.replaceTop(route: NavKey) {
 
 /** Tabs don't stack: switching resets to just that tab. */
 private fun NavBackStack<NavKey>.switchTab(route: NavKey) {
-    if (lastOrNull() == route) return
+    if (size == 1 && lastOrNull() == route) return
     clear()
     add(route)
 }

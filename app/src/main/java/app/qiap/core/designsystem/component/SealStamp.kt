@@ -4,7 +4,12 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.unit.isSpecified
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -42,7 +47,8 @@ enum class SealState {
 /**
  * The 醒 seal (design.md §1, §6): Cinnabar rounded square, white character, rotated −4°.
  * With [stampIn] it slams in (1.6 → 1.0, tiny settle, haptic on contact, 400 ms total) unless the
- * user has reduced motion on.
+ * user has reduced motion on; [shockwave] adds one fading Cinnabar ring on contact.
+ * Pass `size = Dp.Unspecified` to fill the available width as a square (calendar cells).
  */
 @Composable
 fun SealStamp(
@@ -50,6 +56,8 @@ fun SealStamp(
     size: Dp = 64.dp,
     state: SealState = SealState.Earned,
     stampIn: Boolean = false,
+    shockwave: Boolean = false,
+    startDelayMs: Int = 0,
     onStamped: () -> Unit = {},
 ) {
     val colors = QiapTheme.colors
@@ -57,17 +65,20 @@ fun SealStamp(
     val reducedMotion = rememberReducedMotion()
     val haptics = LocalHapticFeedback.current
     val animate = stampIn && !reducedMotion && state != SealState.Missed
-    val scale = remember { Animatable(if (animate) 1.6f else 1f) }
-    val alpha = remember { Animatable(if (animate) 0f else 1f) }
+    val stampScale = remember { Animatable(if (animate) 1.6f else 1f) }
+    val stampAlpha = remember { Animatable(if (animate) 0f else 1f) }
+    val ring = remember { Animatable(0f) }
 
     LaunchedEffect(animate) {
         if (!animate) return@LaunchedEffect
+        delay(startDelayMs.toLong())
         val slam = (QiapMotion.SEAL_STAMP_MS * 0.65f).toInt()
         val settle = QiapMotion.SEAL_STAMP_MS - slam
-        launch { alpha.animateTo(1f, tween(slam / 2)) }
-        scale.animateTo(0.96f, tween(slam, easing = FastOutLinearInEasing))
+        launch { stampAlpha.animateTo(1f, tween(slam / 2)) }
+        stampScale.animateTo(0.96f, tween(slam, easing = FastOutLinearInEasing))
         haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-        scale.animateTo(1f, tween(settle, easing = QiapMotion.easing))
+        if (shockwave) launch { ring.animateTo(1f, tween(700, easing = QiapMotion.easing)) }
+        stampScale.animateTo(1f, tween(settle, easing = QiapMotion.easing))
         onStamped()
     }
 
@@ -76,16 +87,41 @@ fun SealStamp(
         SealState.Fallback -> "Seal, fallback used"
         SealState.Missed -> "No seal"
     }
+    val sized = if (size.isSpecified) Modifier.size(size) else Modifier.fillMaxWidth().aspectRatio(1f)
 
+    if (shockwave) {
+        val ringColor = colors.cinnabar
+        Box(modifier.then(sized)) {
+            Canvas(Modifier.matchParentSize().rotate(SEAL_ROTATION)) {
+                val p = ring.value
+                if (p <= 0f || p >= 1f) return@Canvas
+                scale(0.9f + 0.7f * p) {
+                    drawRoundRect(
+                        ringColor.copy(alpha = 0.5f * (1f - p)),
+                        cornerRadius = CornerRadius(this.size.minDimension * 0.3f),
+                        style = Stroke(3.dp.toPx()),
+                    )
+                }
+            }
+            SealCanvas(Modifier.matchParentSize(), state, label, glyph, stampScale.value, stampAlpha.value)
+        }
+    } else {
+        SealCanvas(modifier.then(sized), state, label, glyph, stampScale.value, stampAlpha.value)
+    }
+}
+
+@Composable
+private fun SealCanvas(modifier: Modifier, state: SealState, label: String, glyph: Path, scaleValue: Float, alphaValue: Float) {
+    val colors = QiapTheme.colors
+    val dash = colors.ink3.copy(alpha = 0.45f)
     Canvas(
         modifier
-            .size(size)
             .semantics { contentDescription = label }
             .rotate(if (state == SealState.Missed) 0f else SEAL_ROTATION)
             .graphicsLayer {
-                scaleX = scale.value
-                scaleY = scale.value
-                this.alpha = alpha.value
+                scaleX = scaleValue
+                scaleY = scaleValue
+                alpha = alphaValue
             },
     ) {
         val side = this.size.minDimension
@@ -93,7 +129,7 @@ fun SealStamp(
         if (state == SealState.Missed) {
             val stroke = 2.dp.toPx()
             drawRoundRect(
-                color = colors.border,
+                color = dash,
                 topLeft = Offset(stroke / 2, stroke / 2),
                 size = Size(side - stroke, side - stroke),
                 cornerRadius = corner,

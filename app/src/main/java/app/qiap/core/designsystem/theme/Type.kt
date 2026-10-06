@@ -40,7 +40,11 @@ data class QiapTypography(
     val h2: TextStyle,
     /** Card title. */
     val h3: TextStyle,
+    /** Row and tile titles. Not in the spec table; between h3 and body. */
+    val title: TextStyle,
     val body: TextStyle,
+    /** Secondary copy inside cards. Not in the spec table. */
+    val bodySmall: TextStyle,
     /** Chips, pills, tabs. */
     val label: TextStyle,
     val caption: TextStyle,
@@ -79,11 +83,24 @@ val DefaultTypography = QiapTypography(
         lineHeight = 24.sp,
         letterSpacing = (-0.02).em,
     ),
+    title = TextStyle(
+        fontFamily = InterFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 20.sp,
+        letterSpacing = (-0.015).em,
+    ),
     body = TextStyle(
         fontFamily = JakartaFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = 24.sp,
+    ),
+    bodySmall = TextStyle(
+        fontFamily = JakartaFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
     ),
     label = TextStyle(
         fontFamily = JakartaFamily,

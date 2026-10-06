@@ -27,6 +27,24 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import app.qiap.core.designsystem.component.ChipTone
+import app.qiap.core.designsystem.component.DayDots
+import app.qiap.core.designsystem.component.ExercisePickerItem
+import app.qiap.core.designsystem.component.ExerciseTile
+import app.qiap.core.designsystem.component.ExerciseTileStyle
+import app.qiap.core.designsystem.component.MiniBars
+import app.qiap.core.designsystem.component.QiapSlider
+import app.qiap.core.designsystem.component.QiapStepper
+import app.qiap.core.designsystem.component.QiapToggle
+import app.qiap.core.designsystem.component.SearchPill
+import app.qiap.core.designsystem.component.ShareBar
+import app.qiap.core.designsystem.component.StepDots
+import app.qiap.core.designsystem.component.TimeWheel
+import app.qiap.core.designsystem.component.ToggleAccent
+import app.qiap.core.designsystem.pictogram.Pictogram
+import app.qiap.core.designsystem.pictogram.Pictograms
 import app.qiap.core.designsystem.component.CardSize
 import app.qiap.core.designsystem.component.CardTone
 import app.qiap.core.designsystem.component.Chip
@@ -78,6 +96,8 @@ fun DesignGalleryScreen(onBack: () -> Unit) {
             ChipsAndTabsSection()
             CardsSection()
             SealSection()
+            ControlsSection()
+            PictogramSection()
             WorkoutSection()
             NavSection()
         }
@@ -138,7 +158,8 @@ private fun TypeSection() = Section("Type scale") {
     val c = QiapTheme.colors
     val rows: List<Pair<String, TextStyle>> = listOf(
         "display 96" to t.display, "displayCompact 56" to t.displayCompact, "h2 28" to t.h2,
-        "h3 20" to t.h3, "body 16" to t.body, "label 13" to t.label, "caption 12" to t.caption,
+        "h3 20" to t.h3, "title 16" to t.title, "body 16" to t.body, "bodySmall 14" to t.bodySmall,
+        "label 13" to t.label, "caption 12" to t.caption,
         "numeric 16" to t.numeric,
     )
     rows.forEach { (name, style) ->
@@ -262,6 +283,49 @@ private fun SealSection() = Section("Seal stamp") {
         SealStamp(size = 64.dp, state = SealState.Missed)
     }
     PillButton("Replay stamp", onClick = { replay++ }, style = PillButtonStyle.Secondary)
+}
+
+@Composable
+private fun ControlsSection() = Section("Controls") {
+    var alarmOn by remember { mutableStateOf(true) }
+    var inkOn by remember { mutableStateOf(false) }
+    var n by remember { mutableIntStateOf(12) }
+    var vol by remember { mutableFloatStateOf(0.6f) }
+    Row(horizontalArrangement = Arrangement.spacedBy(QiapSpacing.md), verticalAlignment = Alignment.CenterVertically) {
+        QiapToggle(alarmOn, { alarmOn = it }, "Alarm toggle", accent = ToggleAccent.Alarm)
+        QiapToggle(inkOn, { inkOn = it }, "Setting toggle")
+        QiapStepper(n, { n-- }, { n++ })
+    }
+    QiapSlider(vol, { vol = it }, "Volume")
+    DayDots(listOf(true, true, true, true, true, false, false))
+    StepDots(4, 2)
+    SearchPill("Search squats, planks…")
+    TimeWheel(6, 30, onChange = { _, _ -> })
+    Row(horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+        Chip("Saffron", leadingIcon = QiapIcons.Flame, tone = ChipTone.Saffron)
+        Chip("Jade", leadingIcon = QiapIcons.Shield, tone = ChipTone.Jade)
+        Chip("Muted", tone = ChipTone.Muted)
+    }
+    MiniBars(listOf(0.4f, 0.7f, 0.55f, 1f, 0.3f, 0f, 0f), highlight = 3)
+    ShareBar(0.45f)
+}
+
+@Composable
+private fun PictogramSection() = Section("Pictograms & tiles") {
+    FlowRowOf(Pictograms.all) { m, i -> Pictogram(m, Modifier.size(64.dp), phase = i * 0.11f) }
+    Row(horizontalArrangement = Arrangement.spacedBy(QiapSpacing.sm)) {
+        ExerciseTile("Lunge", "Lower", 2, Pictograms.Lunge, false, {}, {}, Modifier.weight(1f), ExerciseTileStyle.Muted)
+        ExerciseTile("Plank", "Core", 2, Pictograms.Plank, true, {}, {}, Modifier.weight(1f), ExerciseTileStyle.Dark)
+    }
+    ExercisePickerItem("Squat", Pictograms.Squat, selected = true, onClick = {})
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun <T> FlowRowOf(items: List<T>, item: @Composable (T, Int) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs), verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+        items.forEachIndexed { i, t -> item(t, i) }
+    }
 }
 
 @Composable

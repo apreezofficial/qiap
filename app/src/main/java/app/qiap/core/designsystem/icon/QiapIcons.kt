@@ -55,6 +55,47 @@ object QiapIcons {
         )
     }
 
+    val Minus: ImageVector by lazy { lucide("Minus", "M5 12h14") }
+    val Search: ImageVector by lazy { lucide("Search", circle(11f, 11f, 8f), "M21 21l-4.3-4.3") }
+    val Bell: ImageVector by lazy {
+        lucide("Bell", "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9", "M10.3 21a1.94 1.94 0 0 0 3.4 0")
+    }
+    val Camera: ImageVector by lazy {
+        lucide(
+            "Camera",
+            "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z",
+            circle(12f, 13f, 3f),
+        )
+    }
+    val Zap: ImageVector by lazy { lucide("Zap", "M13 2 3 14h9l-1 8 10-12h-9z") }
+    val Battery: ImageVector by lazy { lucide("Battery", rect(2f, 7f, 16f, 10f, 2f), "M22 11v2", "M6 11v2") }
+    val Layers: ImageVector by lazy {
+        lucide("Layers", "M12 2l10 5-10 5L2 7z", "M2 17l10 5 10-5", "M2 12l10 5 10-5")
+    }
+    val Music: ImageVector by lazy {
+        lucide("Music", "M9 18V5l12-2v13", circle(6f, 18f, 3f), circle(18f, 16f, 3f))
+    }
+    val Video: ImageVector by lazy {
+        lucide("Video", "M16 13l5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11", rect(2f, 6f, 14f, 12f, 2f))
+    }
+    val Close: ImageVector by lazy { lucide("Close", "M18 6 6 18", "M6 6l12 12") }
+    val Timer: ImageVector by lazy { lucide("Timer", circle(12f, 14f, 8f), "M10 2h4", "M12 14l3-3") }
+    val Flame: ImageVector by lazy {
+        lucide(
+            "Flame",
+            "M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 " +
+                "2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z",
+        )
+    }
+    val Shield: ImageVector by lazy {
+        lucide(
+            "Shield",
+            "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1" +
+                "c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
+            "M9 12l2 2 4-4",
+        )
+    }
+
     /** Brand glyph: half-sun rising over a horizon (same geometry as the web logo, 32 grid). */
     val SunriseGlyph: ImageVector by lazy {
         ImageVector.Builder("SunriseGlyph", 24.dp, 24.dp, 32f, 32f).apply {

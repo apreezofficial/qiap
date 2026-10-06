@@ -1,0 +1,5 @@
+<resources>
+    <!-- Only for the pre-Compose window and launcher icon. Compose tokens live in core/designsystem. -->
+    <color name="window_bg">#FFFFFF</color>
+    <color name="cinnabar">#F2542D</color>
+</resources>

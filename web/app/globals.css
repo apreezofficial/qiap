@@ -1,0 +1,278 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/plus-jakarta-sans";
+
+/* ───────── Qiap design tokens (design.md §3–§5) ───────── */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-app: "Plus Jakarta Sans Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-bg: #ffffff;
+  --color-wash: #eef5ff;
+  --color-wash-2: #dcebff;
+  --color-surface-muted: #f5f5f6;
+  --color-line: #ececee;
+  --color-ink: #111114;
+  --color-ink-2: #6b6b72;
+  --color-ink-3: #9a9aa2;
+  --color-sky: #4a90e2;
+  --color-sky-strong: #1a56f0;
+  --color-cinnabar: #f2542d;
+  --color-jade: #34c38f;
+  --color-saffron: #f5b83d;
+  --color-crimson: #d7263d;
+  --color-night: #0d0d0f;
+  --color-night-1: #17171a;
+  --color-night-2: #202024;
+  --color-paper: #f4efe6;
+
+  --radius-card: 24px;
+  --radius-card-sm: 16px;
+  --radius-shell: 32px;
+
+  --shadow-soft: 0 8px 24px rgba(17, 17, 20, 0.06);
+  --shadow-pill: 0 6px 16px rgba(17, 17, 20, 0.25);
+  --shadow-phone: 0 30px 60px -20px rgba(17, 17, 20, 0.28);
+
+  --ease-qiap: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--color-wash-2);
+}
+
+/* ───────── Reusable pieces ───────── */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.h-display {
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.06;
+}
+
+/* two-tone headline: .accent is the gray phrase */
+.h-display .accent {
+  color: var(--color-ink-2);
+}
+
+.container-qiap {
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+.section {
+  padding-block: 64px;
+}
+@media (min-width: 768px) {
+  .section {
+    padding-block: 96px;
+  }
+}
+
+/* pills */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 52px;
+  padding-inline: 24px;
+  border-radius: 9999px;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    transform 200ms var(--ease-qiap),
+    box-shadow 200ms var(--ease-qiap),
+    background-color 200ms var(--ease-qiap);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn-primary {
+  background: var(--color-ink);
+  color: #fff;
+  box-shadow: var(--shadow-pill);
+}
+.btn-primary:hover {
+  background: #26262c;
+}
+.btn-glass {
+  color: var(--color-ink);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(226, 238, 255, 0.85));
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 6px 16px rgba(74, 144, 226, 0.14),
+    inset 0 1px 0 #fff;
+}
+.btn-glass:hover {
+  background: linear-gradient(180deg, #fff, rgba(214, 231, 255, 0.95));
+}
+.btn-sm {
+  height: 44px;
+  padding-inline: 18px;
+  font-size: 14px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding-inline: 14px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1px solid var(--color-line);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(17, 17, 20, 0.04);
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+}
+
+/* faint dot grid that fades out downward (hero backdrop) */
+.dotgrid {
+  background-image: radial-gradient(rgba(17, 17, 20, 0.07) 1px, transparent 1px);
+  background-size: 14px 14px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 85%);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 85%);
+}
+
+/* the single reusable sky wash (design.md §9). Disable by removing .sky-wash */
+.sky-wash {
+  background:
+    radial-gradient(60% 55% at 50% 0%, var(--color-wash-2) 0%, rgba(220, 235, 255, 0) 70%),
+    radial-gradient(40% 40% at 15% 30%, rgba(238, 245, 255, 0.9) 0%, rgba(238, 245, 255, 0) 70%),
+    radial-gradient(40% 40% at 85% 35%, rgba(238, 245, 255, 0.9) 0%, rgba(238, 245, 255, 0) 70%);
+}
+
+.fade-x {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+}
+.fade-b {
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
+}
+
+/* marquee */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 12px;
+  animation: marquee 38s linear infinite;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+/* slow pulse for the "sun" on the ringing screen */
+@keyframes sunpulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+.sunpulse {
+  animation: sunpulse 3s ease-in-out infinite;
+}
+
+/* seal stamp on scroll-in */
+@keyframes stamp {
+  0% {
+    transform: scale(1.6) rotate(-10deg);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(0.96) rotate(-4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-4deg);
+    opacity: 1;
+  }
+}
+.stamp {
+  animation: stamp 400ms var(--ease-qiap) both;
+}
+/* inside a Reveal, wait until it scrolls into view before stamping */
+.reveal .stamp {
+  animation-play-state: paused;
+}
+.reveal.in .stamp {
+  animation-play-state: running;
+}
+
+/* reveal on scroll */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 600ms var(--ease-qiap),
+    transform 600ms var(--ease-qiap);
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/* hide scrollbars on horizontal scrollers */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .marquee-track,
+  .sunpulse,
+  .stamp {
+    animation: none;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

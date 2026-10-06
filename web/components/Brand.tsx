@@ -1,0 +1,64 @@
+/** Qiap glyph: a half-sun rising over a horizon line (reads as dawn and as a squat curve). Single color. */
+export function Glyph({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden>
+      <path
+        d="M5 21a11 11 0 0122 0"
+        stroke="currentColor"
+        strokeWidth="3.2"
+        strokeLinecap="round"
+      />
+      <path d="M3 26.5h26" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" />
+      <path d="M16 4v3.2M6.2 8.6l2.2 2.2M25.8 8.6l-2.2 2.2" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function Logo({ className = "" }: { className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-2 ${className}`}>
+      <Glyph />
+      <span className="text-[24px] font-medium tracking-[-0.04em]">qiap</span>
+    </span>
+  );
+}
+
+/** 醒 ("awake") outline, from Noto Serif CJK SC Bold (SIL OFL 1.1). Vector, so no CJK font is needed anywhere. */
+export const SEAL_PATH =
+  "M60.81 28.73H78.18V38.57H60.81ZM60.81 26.25V16.77H78.18V26.25ZM51.95 14.29V45.22H53.54C58.15 45.22 60.81 43.71 60.81 43.09V41.05H78.18V44.42H79.77C84.38 44.42 87.48 42.73 87.48 42.29V17.48C89.34 17.13 90.23 16.51 90.76 15.8L82.25 9.33L77.82 14.29H61.87L51.95 10.39ZM52.66 45.84C52.22 54.87 50.27 64.09 47.61 70.65L48.85 71.27C52.48 68.16 55.41 63.82 57.71 58.86H65.33V69.76H52.48L53.19 72.33H65.33V86.15H47.61L48.32 88.63H89.61C90.85 88.63 91.73 88.19 92 87.22C88.72 84.03 83.14 79.42 83.14 79.42L78.27 86.15H74.28V72.33H87.48C88.63 72.33 89.61 71.89 89.78 70.91C86.86 67.99 81.9 63.82 81.9 63.82L77.56 69.76H74.28V58.86H88.37C89.61 58.86 90.58 58.42 90.76 57.44C87.66 54.43 82.43 50.09 82.43 50.09L77.73 56.38H74.28V47.61C76.41 47.34 76.94 46.54 77.11 45.39L65.33 44.33V56.38H58.77C59.48 54.61 60.1 52.75 60.72 50.8C62.67 50.8 63.65 49.91 64 48.85ZM29.18 17.92V30.86H26.08V17.92ZM26.08 15.44H8L8.71 17.92H19.52V30.86H18.37L10.22 27.23V91.29H11.46C14.91 91.29 17.92 89.34 17.92 88.46V82.96H38.13V90.23H39.37C42.29 90.23 46.19 88.19 46.37 87.57V34.67C47.96 34.32 49.2 33.7 49.73 32.99L41.41 26.43L37.24 30.86H35.73V17.92H47.87C49.11 17.92 50.09 17.48 50.27 16.51C46.81 13.32 41.05 8.71 41.05 8.71L35.91 15.44ZM38.13 68.16V80.48H17.92V68.16ZM38.13 65.59H17.92V59.13L18.1 59.3C25.54 52.84 26.08 43.09 26.08 36.89V33.43H29.18V50.8C29.18 54.16 29.71 55.58 33.43 55.58H35.47L38.13 55.41ZM38.13 49.56 37.77 49.65C37.59 49.65 37.24 49.65 36.97 49.65C36.71 49.65 36.35 49.65 36 49.65H35.03C34.58 49.65 34.41 49.38 34.41 48.49V33.43H38.13ZM17.92 56.29V33.43H20.94V36.8C20.94 42.47 21.03 49.73 17.92 56.29Z";
+
+/** The Cinnabar 醒 seal as a pure SVG: rounded square + white character. */
+export function Seal({
+  size = 64,
+  dashed = false,
+  className = "",
+  animate = false,
+}: {
+  size?: number;
+  dashed?: boolean;
+  className?: string;
+  animate?: boolean;
+}) {
+  if (dashed) {
+    return (
+      <span
+        className={`inline-block rounded-[22%] border-2 border-dashed border-line ${className}`}
+        style={{ width: size, height: size }}
+        aria-hidden
+      />
+    );
+  }
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      className={`${animate ? "stamp" : ""} ${className}`}
+      style={{ transform: "rotate(-4deg)", filter: "drop-shadow(0 6px 10px rgba(242,84,45,0.35))" }}
+      aria-hidden
+    >
+      <rect width="100" height="100" rx="22" fill="#F2542D" />
+      <path d={SEAL_PATH} fill="#fff" />
+    </svg>
+  );
+}

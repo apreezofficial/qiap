@@ -73,6 +73,17 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
           retention-days: 14
 
+      # Debug build has the FPS/inference readout and the fixture recorder for on-device tuning.
+      - name: Debug build
+        run: ./gradlew :app:assembleDebug --console=plain
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: qiap-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v7

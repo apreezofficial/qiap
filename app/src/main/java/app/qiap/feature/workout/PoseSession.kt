@@ -91,12 +91,12 @@ class PoseSession(
             WorkoutPhase.LIVENESS -> stepGesture(frame, WorkoutPhase.COUNTING, GESTURE_TIMEOUT_MS)
             WorkoutPhase.COUNTING -> stepCounting(frame)
             WorkoutPhase.FINAL_STILL -> {
-                setCue(STILL_CUE)
+                showCue(STILL_CUE)
                 if (stillness.onFrame(frame)) enter(WorkoutPhase.FINAL_GESTURE, frame)
                 else if (frame.timestampMs - phaseStartedAt > STILL_TIMEOUT_MS) enter(WorkoutPhase.DONE, frame)
             }
             WorkoutPhase.FINAL_GESTURE -> stepGesture(frame, WorkoutPhase.DONE, GESTURE_TIMEOUT_MS)
-            WorkoutPhase.DONE -> setCue(null)
+            WorkoutPhase.DONE -> showCue(null)
         }
 
         measure(frame.timestampMs, inferenceMs)
@@ -105,7 +105,7 @@ class PoseSession(
     }
 
     private fun stepGesture(frame: PoseFrame, next: WorkoutPhase, timeoutMs: Long) {
-        setCue(Gestures.prompt(liveness))
+        showCue(Gestures.prompt(liveness))
         if (liveness.onFrame(frame) || frame.timestampMs - phaseStartedAt > timeoutMs) enter(next, frame)
     }
 
@@ -118,7 +118,7 @@ class PoseSession(
         if (counter.reps != reps) reps = counter.reps
         val seen = !gated && counter.tracking
         if (seen != tracking) tracking = seen
-        setCue(
+        showCue(
             when {
                 shaking -> SHAKE_CUE
                 tooSmall -> FRAME_CUE
@@ -141,7 +141,7 @@ class PoseSession(
         if (next != WorkoutPhase.COUNTING && offForm) offForm = false
     }
 
-    private fun setCue(newCue: String?) {
+    private fun showCue(newCue: String?) {
         if (newCue != cue) cue = newCue
     }
 

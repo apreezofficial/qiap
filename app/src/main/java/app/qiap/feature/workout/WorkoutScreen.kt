@@ -50,7 +50,9 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -216,6 +218,17 @@ private fun LiveWorkout(
         } finally {
             engine.close()
         }
+    }
+
+    // Haptic tick per rep and a firmer buzz every fifth (details.md §7). Holds buzz every 5 s only.
+    val haptics = LocalHapticFeedback.current
+    var lastBuzzedReps by remember { mutableIntStateOf(0) }
+    LaunchedEffect(session.reps) {
+        val r = session.reps
+        if (r > lastBuzzedReps && (!exercise.isHold || r % 5 == 0)) {
+            haptics.performHapticFeedback(if (r % 5 == 0) HapticFeedbackType.LongPress else HapticFeedbackType.TextHandleMove)
+        }
+        lastBuzzedReps = r
     }
 
     // Done = reps reached and (real alarms) the final stand-still + gesture passed.

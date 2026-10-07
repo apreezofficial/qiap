@@ -1,5 +1,10 @@
 package app.qiap.feature.settings
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +28,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import app.qiap.QiapApp
 import app.qiap.alarm.Check
+import app.qiap.alarm.OemGuides
 import app.qiap.camera.ProofStore
 import app.qiap.core.designsystem.component.CardSize
 import app.qiap.core.designsystem.component.CardTone
@@ -147,6 +153,42 @@ fun SettingsScreen(onBack: () -> Unit, onOpenGallery: (() -> Unit)?) {
                     )
                 }
             }
+        }
+
+        // Battery-killer guide for this phone's maker (details.md §5): plain steps + an "I did this" tick.
+        val guide = remember { OemGuides.forManufacturer(Build.MANUFACTURER) }
+        val settingsPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+        var guideDone by remember { mutableStateOf(settingsPrefs.getBoolean("oem_guide_done", false)) }
+        QiapCard(size = CardSize.Small, verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                QiapText("Keep Qiap alive on ${guide.brand}", style = type.title, modifier = Modifier.weight(1f))
+                Chip(
+                    if (guideDone) "Done" else "Not yet",
+                    selected = guideDone,
+                    leadingIcon = if (guideDone) QiapIcons.Check else null,
+                    onClick = {
+                        guideDone = !guideDone
+                        settingsPrefs.edit().putBoolean("oem_guide_done", guideDone).apply()
+                    },
+                )
+            }
+            QiapText(
+                "Phone makers love closing alarm apps to save battery. These steps stop that.",
+                style = type.caption,
+                color = colors.ink3,
+            )
+            guide.steps.forEachIndexed { i, step ->
+                Row(horizontalArrangement = Arrangement.spacedBy(QiapSpacing.sm), verticalAlignment = Alignment.Top) {
+                    QiapText("${i + 1}", style = type.label, color = colors.ink3)
+                    QiapText(step, style = type.bodySmall, color = colors.ink2, modifier = Modifier.weight(1f))
+                }
+            }
+            Chip("Open Qiap's app settings", leadingIcon = QiapIcons.Settings, onClick = {
+                context.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            })
         }
 
         var keepDays by remember { mutableIntStateOf(ProofStore.retentionDays(context)) }

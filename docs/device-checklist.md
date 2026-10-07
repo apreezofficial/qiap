@@ -66,3 +66,24 @@ Camera placement for each is on the exercise's detail sheet in the Library.
 
 ## Where to write results
 Add a short note to the pull request: phone model, Android version, pass/fail per section, the fps number.
+
+## 8. Anti-cheat (real alarms only; Library "Try it now" skips these)
+- [ ] After "Start workout" the camera asks for a gesture ("Raise your right hand" etc). Doing it starts the count; reps before it do not count.
+- [ ] Doing the wrong hand does not pass. After 20 s without the gesture it lets you start anyway (so a bad camera angle cannot trap you).
+- [ ] Wave the phone about while exercising: the cue "Prop the phone up and keep it still" appears and reps stop counting. Prop it again: counting resumes.
+- [ ] Stand so only your upper half is in frame: "Step back so I can see all of you", nothing counts.
+- [ ] After the last rep: "Stand still for a moment", then a different gesture, then the seal screen. Moving around keeps restarting the 3 s stillness.
+
+## 9. Video proof
+Turn on Video proof in an alarm, then ring it (test alarm cannot, it has no saved setting; use a real alarm one minute away).
+- [ ] The workout screen shows the red REC dot and "Proof - m:ss". If your phone cannot record and count together, the dot is absent and the workout still works. Note which.
+- [ ] After the seal screen: History shows a Video proof row. Play works and the scrubber moves.
+- [ ] Share opens the share sheet with an MP4 attached.
+- [ ] Setup > Keep video proof for: pick 7 days. Videos older than that disappear the next time Home opens.
+- [ ] The video file is not in the phone's Gallery (it is private to Qiap).
+
+## 10. Haptics and look
+- [ ] A small tick on every rep, a firmer buzz on every 5th.
+- [ ] Setup shows a battery guide for your phone's brand. Tick "Done" after following it.
+- [ ] Text is readable at the largest font size (Settings > Display > Font size): nothing cut off on Home, the editor, or the ringing screen.
+- [ ] TalkBack on: the nav pill, alarm toggle, day chips, and "Start workout" all read out sensible names.

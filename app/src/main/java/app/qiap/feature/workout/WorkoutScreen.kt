@@ -24,7 +24,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -152,7 +157,26 @@ private fun LiveWorkout(exercise: ExerciseSpec, target: Int, onComplete: (Int, I
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val container = remember { (context.applicationContext as QiapApp).container }
-    val session = remember(exercise) { PoseSession(exercise) }
+    // A real alarm (onGiveUp set) also runs the anti-cheat checks; practice from the library does not.
+    val realAlarm = onGiveUp != null
+    val session = remember(exercise, target) { PoseSession(exercise, target, antiCheat = realAlarm) }
+
+    // Phone-shake check: reps are ignored while the phone is waved about instead of propped up.
+    if (realAlarm) {
+        DisposableEffect(session) {
+            val sensors = context.getSystemService(SensorManager::class.java)
+            val accel = sensors?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+            val listener = object : SensorEventListener {
+                override fun onSensorChanged(e: SensorEvent) {
+                    session.shake.onSample(e.values[0], e.values[1], e.values[2], e.timestamp / 1_000_000)
+                }
+
+                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+            }
+            if (accel != null) sensors?.registerListener(listener, accel, SensorManager.SENSOR_DELAY_GAME)
+            onDispose { sensors?.unregisterListener(listener) }
+        }
+    }
     var seconds by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { while (true) { delay(1000); seconds++ } }
     val done by rememberUpdatedState(onComplete)
@@ -180,8 +204,9 @@ private fun LiveWorkout(exercise: ExerciseSpec, target: Int, onComplete: (Int, I
         }
     }
 
-    LaunchedEffect(session.reps) {
-        if (session.reps >= target) {
+    // Done = reps reached and (real alarms) the final stand-still + gesture passed.
+    LaunchedEffect(session.phase) {
+        if (session.phase == WorkoutPhase.DONE) {
             delay(500)
             done(session.reps, seconds)
         }
@@ -409,7 +434,7 @@ private fun BoxScope.WorkoutHud(
                 modifier = Modifier.padding(bottom = 14.dp),
             )
         }
-        QiapProgressBar(reps / target.toFloat())
+        QiapProgressBar((reps / target.toFloat()).coerceIn(0f, 1f))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs), content = footer)
     }
 }

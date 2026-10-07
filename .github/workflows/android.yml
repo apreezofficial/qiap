@@ -2,7 +2,7 @@ name: Android
 
 on:
   push:
-    branches: [main]
+    branches: [main, "phase-*"]
     paths-ignore: ["web/**", "**.md"]
   pull_request:
     paths-ignore: ["web/**", "**.md"]
@@ -31,7 +31,7 @@ jobs:
       # Caches Gradle deps and wrapper; only main writes the cache so PRs can't poison it.
       - uses: gradle/actions/setup-gradle@v6
         with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/phase-') }}
 
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest --console=plain

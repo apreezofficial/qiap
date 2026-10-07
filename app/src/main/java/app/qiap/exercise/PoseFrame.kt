@@ -19,6 +19,8 @@ object Landmark {
     const val RIGHT_KNEE = 26
     const val LEFT_ANKLE = 27
     const val RIGHT_ANKLE = 28
+    const val LEFT_HEEL = 29
+    const val RIGHT_HEEL = 30
 
     /** Bones drawn by the skeleton overlay, as index pairs. */
     val BONES: IntArray = intArrayOf(

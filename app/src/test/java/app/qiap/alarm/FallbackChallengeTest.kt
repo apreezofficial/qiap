@@ -60,6 +60,26 @@ class FallbackChallengeTest {
     }
 
     @Test
+    fun poolAlarmDrawsFromItsPoolWithThatExercisesOwnTarget() {
+        val a = Alarm(id = 2, hour = 6, minute = 0, exerciseId = "squat", target = 7, poolId = "cardio")
+        val ids = HashSet<String>()
+        repeat(60) {
+            val r = RingRequest.from(a)
+            val ex = app.qiap.exercise.ExercisePools.CardioBlast.members.first { it.id == r.exerciseId }
+            assertEquals(ex.defaultTarget, r.target)
+            ids += r.exerciseId
+        }
+        assertTrue("random pool should vary", ids.size > 1)
+    }
+
+    @Test
+    fun fixedAlarmKeepsItsExerciseAndTarget() {
+        val r = RingRequest.from(Alarm(id = 3, hour = 6, minute = 0, exerciseId = "pushup", target = 9))
+        assertEquals("pushup", r.exerciseId)
+        assertEquals(9, r.target)
+    }
+
+    @Test
     fun testAlarmsNeverSnooze() {
         assertEquals(0, RingRequest(AlarmScheduler.TEST_ID, 6, 0, "Test", "squat", 5, 0.6f, snoozeMax = 3).snoozesLeft)
     }

@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.qiap.BuildConfig
 import app.qiap.QiapApp
 import app.qiap.alarm.Alarm
 import app.qiap.alarm.Check
@@ -58,6 +59,7 @@ import app.qiap.core.designsystem.theme.QiapSpacing
 import app.qiap.core.designsystem.theme.QiapTheme
 import app.qiap.core.designsystem.theme.bleedHorizontal
 import app.qiap.exercise.ExerciseCatalog
+import app.qiap.exercise.ExercisePools
 import app.qiap.feature.pictogramFor
 import kotlinx.coroutines.delay
 import java.time.Duration
@@ -170,13 +172,16 @@ fun HomeScreen(
 
         ReliabilityCard(checks, onFix = onOpenSettings)
 
-        PillButton(
-            "Preview ringing",
-            onClick = onPreviewRinging,
-            style = PillButtonStyle.Secondary,
-            leadingIcon = QiapIcons.Play,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        // Developer shortcut: real users test the whole flow with "Test alarm" in Setup.
+        if (BuildConfig.DEBUG) {
+            PillButton(
+                "Preview ringing",
+                onClick = onPreviewRinging,
+                style = PillButtonStyle.Secondary,
+                leadingIcon = QiapIcons.Play,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -236,8 +241,9 @@ private fun AlarmCard(alarm: Alarm, countdown: String?, phase: Float, onClick: (
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             DayDots(alarm.dayFlags())
+            val pool = ExercisePools.byId(alarm.poolId)
             Chip(
-                "${alarm.target} ${spec.unit}",
+                if (pool != null) "Random · ${pool.name}" else "${alarm.target} ${spec.unit}",
                 tone = ChipTone.Muted,
                 leading = { Pictogram(pictogramFor(spec.id), Modifier.size(18.dp), showFloor = false, phase = phase) },
             )

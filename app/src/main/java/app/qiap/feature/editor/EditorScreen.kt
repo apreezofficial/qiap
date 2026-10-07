@@ -24,6 +24,7 @@ import app.qiap.alarm.Alarm
 import app.qiap.alarm.nextTrigger
 import app.qiap.core.common.formatCountdown
 import app.qiap.core.designsystem.component.CardSize
+import app.qiap.core.designsystem.component.CardTone
 import app.qiap.core.designsystem.component.Chip
 import app.qiap.core.designsystem.component.ExercisePickerItem
 import app.qiap.core.designsystem.component.HairlineDivider
@@ -41,7 +42,9 @@ import app.qiap.core.designsystem.icon.QiapIcons
 import app.qiap.core.designsystem.theme.QiapSpacing
 import app.qiap.core.designsystem.theme.QiapTheme
 import app.qiap.core.designsystem.theme.bleedHorizontal
+import app.qiap.exercise.Category
 import app.qiap.exercise.ExerciseCatalog
+import app.qiap.exercise.ExercisePools
 import app.qiap.feature.home.NavClearance
 import app.qiap.feature.pictogramFor
 import java.time.Duration
@@ -68,9 +71,12 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
     var target by rememberSaveable { mutableIntStateOf(start.target) }
     var volume by rememberSaveable { mutableFloatStateOf(start.volume) }
     var snoozeMax by rememberSaveable { mutableIntStateOf(start.snoozeMax) }
+    var poolId by rememberSaveable { mutableStateOf(start.poolId) }
+    var categoryFilter by remember { mutableStateOf<Category?>(null) }
+    val pool = ExercisePools.byId(poolId)
     val spec = ExerciseCatalog.byId(exerciseId) ?: ExerciseCatalog.Squat
 
-    val draft = start.copy(hour = hour, minute = minute, days = days, exerciseId = spec.id, target = target, volume = volume, snoozeMax = snoozeMax, enabled = true)
+    val draft = start.copy(hour = hour, minute = minute, days = days, exerciseId = spec.id, target = target, volume = volume, snoozeMax = snoozeMax, poolId = if (pool != null) pool.id else "", enabled = true)
     val now = ZonedDateTime.now()
     val inMinutes = ((Duration.between(now, nextTrigger(draft, now)).seconds + 59) / 60).toInt()
 
@@ -109,33 +115,65 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
                 QiapText("Exercise", style = QiapTheme.type.title)
                 Chip("Browse library", onClick = onSeeAllExercises)
             }
-            Row(
-                Modifier
-                    .bleedHorizontal(QiapSpacing.md)
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = QiapSpacing.md, vertical = QiapSpacing.xs),
-                horizontalArrangement = Arrangement.spacedBy(QiapSpacing.sm),
-            ) {
-                // Only exercises the rep counter can actually verify are offered for alarms.
-                ExerciseCatalog.all.forEachIndexed { i, ex ->
-                    ExercisePickerItem(ex.name, pictogramFor(ex.id), selected = ex.id == spec.id, phase = i * 0.17f, onClick = { exerciseId = ex.id })
+            // One fixed exercise, or "surprise me" from a preset pool (details.md §8).
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+                Chip("Pick one", selected = poolId.isEmpty(), onClick = { poolId = "" })
+                for (p in ExercisePools.all) {
+                    Chip("Random · ${p.name}", selected = poolId == p.id, onClick = { poolId = p.id })
+                }
+            }
+            if (pool != null) {
+                QiapCard(size = CardSize.Small, tone = CardTone.Muted, verticalArrangement = Arrangement.spacedBy(QiapSpacing.xxs)) {
+                    QiapText("${pool.name}: ${pool.blurb}", style = QiapTheme.type.title)
+                    QiapText(
+                        "Each morning is a surprise. One of: " + pool.members.joinToString(", ") { it.name } + ".",
+                        style = QiapTheme.type.bodySmall,
+                        color = colors.ink2,
+                    )
+                }
+            } else {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+                    Chip("All", selected = categoryFilter == null, onClick = { categoryFilter = null })
+                    for (c in Category.entries) {
+                        Chip(c.label, selected = categoryFilter == c, onClick = { categoryFilter = c })
+                    }
+                }
+                Row(
+                    Modifier
+                        .bleedHorizontal(QiapSpacing.md)
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = QiapSpacing.md, vertical = QiapSpacing.xs),
+                    horizontalArrangement = Arrangement.spacedBy(QiapSpacing.sm),
+                ) {
+                    ExerciseCatalog.all.filter { categoryFilter == null || it.category == categoryFilter }.forEachIndexed { i, ex ->
+                        ExercisePickerItem(
+                            ex.name, pictogramFor(ex.id), selected = ex.id == spec.id, phase = i * 0.17f,
+                            animate = ex.id == spec.id,
+                            onClick = { exerciseId = ex.id; target = ex.defaultTarget },
+                        )
+                    }
+                }
+                if (spec.provisional) {
+                    QiapText("Beta: ${spec.name} counting is still being tuned. The emergency exit is always there.", style = QiapTheme.type.caption, color = colors.ink3)
                 }
             }
         }
 
         QiapCard(size = CardSize.Small, verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
-            ListRow(
-                "Target",
-                subtitle = "${spec.unit} to stop the alarm",
-                trailing = {
-                    QiapStepper(
-                        target,
-                        onDecrement = { target = (target - if (target > 20) 5 else 1).coerceAtLeast(1) },
-                        onIncrement = { target = (target + if (target >= 20) 5 else 1).coerceAtMost(99) },
-                    )
-                },
-            )
-            HairlineDivider()
+            if (pool == null) {
+                ListRow(
+                    "Target",
+                    subtitle = "${spec.unit} to stop the alarm",
+                    trailing = {
+                        QiapStepper(
+                            target,
+                            onDecrement = { target = (target - if (target > 20) 5 else 1).coerceAtLeast(1) },
+                            onIncrement = { target = (target + if (target >= 20) 5 else 1).coerceAtMost(99) },
+                        )
+                    },
+                )
+                HairlineDivider()
+            }
             ListRow(
                 "Sound",
                 subtitle = "Your phone's alarm sound",

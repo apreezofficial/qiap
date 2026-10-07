@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import app.qiap.QiapApp
 import app.qiap.R
 import app.qiap.core.common.twelveHour
+import app.qiap.exercise.ExercisePools
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
@@ -57,9 +58,14 @@ data class RingRequest(
         private const val K_SNOOZE_MAX = "ring.snoozeMax"
         private const val K_SNOOZE_USED = "ring.snoozeUsed"
 
-        fun from(a: Alarm) = RingRequest(
-            a.id, a.hour, a.minute, a.label.ifBlank { a.daysLabel() }, a.exerciseId, a.target, a.volume, a.snoozeMax,
-        )
+        /** A pool alarm draws its exercise now, at ring time, and uses that exercise's own default target. */
+        fun from(a: Alarm): RingRequest {
+            val pick = ExercisePools.byId(a.poolId)?.members?.randomOrNull()
+            return RingRequest(
+                a.id, a.hour, a.minute, a.label.ifBlank { a.daysLabel() },
+                pick?.id ?: a.exerciseId, pick?.defaultTarget ?: a.target, a.volume, a.snoozeMax,
+            )
+        }
 
         fun fromIntent(i: Intent): RingRequest? = if (!i.hasExtra(K_ID)) null else RingRequest(
             i.getIntExtra(K_ID, -1), i.getIntExtra(K_H, 0), i.getIntExtra(K_M, 0), i.getStringExtra(K_LABEL) ?: "",

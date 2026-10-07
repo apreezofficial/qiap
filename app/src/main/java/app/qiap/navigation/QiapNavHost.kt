@@ -34,6 +34,7 @@ import app.qiap.core.designsystem.theme.QiapSpacing
 import app.qiap.core.designsystem.theme.QiapTheme
 import app.qiap.core.designsystem.theme.QiapThemeVariant
 import app.qiap.core.designsystem.theme.qiapTween
+import app.qiap.exercise.ExerciseCatalog
 import app.qiap.feature.editor.EditorScreen
 import app.qiap.feature.gallery.DesignGalleryScreen
 import app.qiap.feature.history.HistoryScreen
@@ -50,7 +51,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class EditorRoute(val alarmId: Int? = null) : NavKey
 @Serializable data object LibraryRoute : NavKey
 @Serializable data object RingingRoute : NavKey
-@Serializable data object WorkoutRoute : NavKey
+/** [exerciseId] is the exercise to practise ("Try it now" in the library, or the ringing preview). */
+@Serializable data class WorkoutRoute(val exerciseId: String = "squat") : NavKey
 @Serializable data object SuccessRoute : NavKey
 @Serializable data object HistoryRoute : NavKey
 @Serializable data object SettingsRoute : NavKey
@@ -92,7 +94,7 @@ fun QiapNavHost() {
                 }
                 entry<LibraryRoute> {
                     QiapTheme {
-                        LibraryScreen(onTryIt = { backStack.add(WorkoutRoute) }, onOverlayChange = { overlayOpen = it })
+                        LibraryScreen(onTryIt = { id -> backStack.add(WorkoutRoute(id)) }, onOverlayChange = { overlayOpen = it })
                     }
                 }
                 entry<HistoryRoute> { QiapTheme { HistoryScreen() } }
@@ -109,13 +111,20 @@ fun QiapNavHost() {
                         // In-app preview only (no sound, nothing logged). Real alarms ring in RingingActivity.
                         RingingScreen(
                             hour = 6, minute = 30, label = "Preview", exerciseId = "squat", exerciseUnit = "squats", target = 12,
-                            onStartWorkout = { backStack.replaceTop(WorkoutRoute) },
+                            onStartWorkout = { backStack.replaceTop(WorkoutRoute()) },
                             onFallback = backStack::pop,
                         )
                     }
                 }
-                entry<WorkoutRoute> {
-                    QiapTheme(QiapThemeVariant.Night) { WorkoutScreen(onComplete = { _, _ -> backStack.replaceTop(SuccessRoute) }) }
+                entry<WorkoutRoute> { route ->
+                    val spec = ExerciseCatalog.byId(route.exerciseId) ?: ExerciseCatalog.Squat
+                    QiapTheme(QiapThemeVariant.Night) {
+                        WorkoutScreen(
+                            exercise = spec,
+                            target = spec.defaultTarget,
+                            onComplete = { _, _ -> backStack.replaceTop(SuccessRoute) },
+                        )
+                    }
                 }
                 entry<SuccessRoute> {
                     QiapTheme { SuccessScreen(reps = 12, seconds = 48, streak = 1, best = 1, onDone = { backStack.switchTab(HomeRoute) }) }

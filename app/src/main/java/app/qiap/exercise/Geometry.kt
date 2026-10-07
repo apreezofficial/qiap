@@ -1,6 +1,8 @@
 package app.qiap.exercise
 
 import kotlin.math.acos
+import kotlin.math.atan2
+import kotlin.math.abs
 import kotlin.math.sqrt
 
 /**
@@ -28,4 +30,47 @@ fun PoseFrame.minVisibility(indices: IntArray): Float {
     var m = 1f
     for (i in indices) if (visibility[i] < m) m = visibility[i]
     return m
+}
+
+/** Mean x of [indices] (image-normalized). */
+fun PoseFrame.midX(indices: IntArray): Float {
+    var s = 0f
+    for (i in indices) s += x[i]
+    return s / indices.size
+}
+
+/** Mean y of [indices] (image-normalized; y grows downward). */
+fun PoseFrame.midY(indices: IntArray): Float {
+    var s = 0f
+    for (i in indices) s += y[i]
+    return s / indices.size
+}
+
+private val SHOULDER_PAIR = intArrayOf(Landmark.LEFT_SHOULDER, Landmark.RIGHT_SHOULDER)
+private val HIP_PAIR = intArrayOf(Landmark.LEFT_HIP, Landmark.RIGHT_HIP)
+
+/**
+ * Torso length: mid-shoulder to mid-hip, aspect-corrected (details.md §6: every distance is
+ * normalized by this so thresholds hold at any distance from the camera). NaN if degenerate.
+ */
+fun PoseFrame.torsoLength(): Float {
+    val dx = (midX(SHOULDER_PAIR) - midX(HIP_PAIR)) * aspect
+    val dy = midY(SHOULDER_PAIR) - midY(HIP_PAIR)
+    val len = sqrt(dx * dx + dy * dy)
+    return if (len < 0.02f) Float.NaN else len
+}
+
+/** Aspect-corrected distance between the mid-points of two landmark groups. */
+fun PoseFrame.distance(a: IntArray, b: IntArray): Float {
+    val dx = (midX(a) - midX(b)) * aspect
+    val dy = midY(a) - midY(b)
+    return sqrt(dx * dx + dy * dy)
+}
+
+/** Angle (degrees, 0..180) between the vector [from]→[to] and straight down the screen. */
+fun PoseFrame.fromVerticalDeg(from: IntArray, to: IntArray): Float {
+    val dx = (midX(to) - midX(from)) * aspect
+    val dy = midY(to) - midY(from)
+    if (dx * dx + dy * dy < 1e-8f) return Float.NaN
+    return Math.toDegrees(atan2(abs(dx).toDouble(), dy.toDouble())).toFloat()
 }

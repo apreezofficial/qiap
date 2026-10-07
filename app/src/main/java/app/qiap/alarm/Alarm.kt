@@ -24,6 +24,8 @@ data class Alarm(
     val volume: Float = 0.8f,
     /** How many 5-minute snoozes the alarm allows. 0 = none (default): the workout is the only way out. */
     val snoozeMax: Int = 0,
+    /** Non-empty = "surprise me": each ring draws a random exercise from this pool (ExercisePools id). */
+    val poolId: String = "",
 ) {
     init {
         require(hour in 0..23 && minute in 0..59) { "bad time $hour:$minute" }

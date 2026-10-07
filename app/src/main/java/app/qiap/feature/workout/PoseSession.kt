@@ -38,7 +38,7 @@ class PoseSession(val spec: ExerciseSpec) : PoseEngine.Listener {
     var tracking by mutableStateOf(false)
         private set
     /** Short coaching line, or null when all is well. Always a constant string (no per-frame allocation). */
-    var cue by mutableStateOf<String?>(STEP_BACK)
+    var cue by mutableStateOf<String?>(spec.stepBackCue)
         private set
     /** Lower body is short of good depth right now (overlay paints hips/knees saffron). */
     var offForm by mutableStateOf(false)
@@ -65,7 +65,8 @@ class PoseSession(val spec: ExerciseSpec) : PoseEngine.Listener {
         if (counter.reps != reps) reps = counter.reps
         if (counter.tracking != tracking) tracking = counter.tracking
         val newCue = when {
-            !counter.tracking -> STEP_BACK
+            !counter.tracking -> spec.stepBackCue
+            counter.gateCue != null -> counter.gateCue
             counter.needsMoreDepth || event == RepEvent.REP_SHALLOW -> spec.depthCue
             else -> null
         }
@@ -104,9 +105,5 @@ class PoseSession(val spec: ExerciseSpec) : PoseEngine.Listener {
         val sb = recording ?: return null
         recording = null
         return synchronized(sb) { sb.toString() }
-    }
-
-    private companion object {
-        const val STEP_BACK = "Step back so I can see your legs"
     }
 }

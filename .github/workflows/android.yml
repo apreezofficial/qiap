@@ -66,6 +66,18 @@ jobs:
             echo "::error::APK is ${mb} MB, over the 40 MB budget"; exit 1
           fi
 
+
+      # details.md Phase 6 "APK size audit": what is actually in the APK, biggest first.
+      - name: APK size breakdown
+        run: |
+          apk=app/build/outputs/apk/release/app-release.apk
+          {
+            echo "### What's in the release APK (largest 15, compressed bytes)"
+            echo '```'
+            unzip -v "$apk" | awk 'NR>3 && $1 ~ /^[0-9]+$/ {print $3, $8}' | sort -nr | head -15 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload release APK
         uses: actions/upload-artifact@v7
         with:

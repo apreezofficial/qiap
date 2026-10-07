@@ -28,9 +28,9 @@ Use **Setup > Test alarm in 10 s** for quick runs, then repeat once with a real 
 ## 3. Kill and restart (the Phase 3 acceptance test)
 Run while the alarm is ringing, once on the ringing screen and once mid-workout:
 ```bash
-adb shell am force-stop app.qiap.debug
+adb shell am force-stop app.qiap
 ```
-(Use `app.qiap` if the debug build has no suffix; `adb shell pm list packages | grep qiap` shows it.)
+
 - [ ] Within a few seconds the alarm rings again and the ringing screen returns.
 - [ ] After 30 min total it stops by itself and the day shows as missed in History.
 
@@ -55,7 +55,7 @@ Set an alarm with Snooze 2x.
 ## 7. Record fixtures so the thresholds can be tuned
 For each exercise below, in the debug workout screen tap **Record**, do **10 clean reps**, tap **Stop**.
 Then do it again with **5 sloppy reps** (too shallow, too fast, bad form). Files are saved in
-`Android/data/app.qiap.debug/files/fixtures/` (or `app.qiap`). Copy them to the repo's
+`Android/data/app.qiap/files/fixtures/`. Copy them to the repo's
 `app/src/test/resources/fixtures/` and send them over.
 
 Priority order (the ones most likely to be used in an alarm):

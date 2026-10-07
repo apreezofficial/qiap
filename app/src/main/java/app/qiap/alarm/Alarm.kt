@@ -26,12 +26,17 @@ data class Alarm(
     val snoozeMax: Int = 0,
     /** Non-empty = "surprise me": each ring draws a random exercise from this pool (ExercisePools id). */
     val poolId: String = "",
+    /** Up to three exercises done back to back (ids in order). Non-empty overrides [exerciseId] and [poolId]. */
+    val routine: List<String> = emptyList(),
+    /** True = snoozing isn't free: it needs a short mini set of the exercise first. */
+    val snoozeMini: Boolean = false,
 ) {
     init {
         require(hour in 0..23 && minute in 0..59) { "bad time $hour:$minute" }
         require(days in 0..0x7F) { "bad day mask $days" }
         require(target in 1..999) { "bad target $target" }
         require(snoozeMax in 0..MAX_SNOOZES) { "bad snooze count $snoozeMax" }
+        require(routine.size <= MAX_ROUTINE) { "routine too long" }
     }
 
     val isRepeating: Boolean get() = days != 0
@@ -43,6 +48,7 @@ data class Alarm(
         const val WEEKEND = 0b1100000
         const val EVERY_DAY = 0b1111111
         const val MAX_SNOOZES = 3
+        const val MAX_ROUTINE = 3
         const val SNOOZE_MS = 5 * 60 * 1000L
 
         fun dayMask(vararg days: DayOfWeek): Int = days.fold(0) { m, d -> m or (1 shl (d.value - 1)) }

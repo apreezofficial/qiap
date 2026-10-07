@@ -64,6 +64,8 @@ class ExerciseSpec(
     val holdLow: Float = 0f,
     val holdHigh: Float = 0f,
     val stages: List<Stage> = emptyList(),
+    /** Sequences: how long the start pose must be held mid-move before the rep counts as abandoned (a jump passes through it). */
+    val abandonMs: Long = 0,
     /** Key into the pictogram set; defaults to the id. */
     val pictogram: String = id,
 ) {
@@ -142,6 +144,19 @@ object ExerciseCatalog {
     private fun bodyLineAtLeast(min: Float) = Range(bodyLine, min, 400f, "Keep your body in a straight line")
     private fun kneesAtLeast(min: Float) = Range(knee, min, 400f, "Straighten your legs")
 
+    /**
+     * Opposite arm and leg both reaching out in line with the torso (bird dog, dead bug): the arm
+     * angle at the shoulder and the leg angle at the hip are both near 180 degrees. Flipped and
+     * combined with a max, so the value is low only when BOTH are extended.
+     */
+    private fun armLegLine(armLeft: Boolean): Metric {
+        val arm = if (armLeft) tri(Landmark.LEFT_WRIST, Landmark.LEFT_SHOULDER, Landmark.LEFT_HIP)
+        else tri(Landmark.RIGHT_WRIST, Landmark.RIGHT_SHOULDER, Landmark.RIGHT_HIP)
+        val leg = if (armLeft) tri(Landmark.RIGHT_SHOULDER, Landmark.RIGHT_HIP, Landmark.RIGHT_ANKLE)
+        else tri(Landmark.LEFT_SHOULDER, Landmark.LEFT_HIP, Landmark.LEFT_ANKLE)
+        return MaxOf(Flip(SideAngle(arm, V), 360f), Flip(SideAngle(leg, V), 360f))
+    }
+
     // --- Lower body (13) -------------------------------------------------------------------
 
     val Squat = ExerciseSpec(
@@ -162,9 +177,9 @@ object ExerciseCatalog {
 
     val JumpSquat = ExerciseSpec(
         id = "jump-squat", name = "Jump squat", unit = "jumps",
-        // Hip rise in torso lengths, flipped: rest reads high, a hop reads low.
-        metric = Flip(HipRise(2500f, V), 0.5f),
-        downBelow = 0.38f, upAbove = 0.46f, goodBelow = 0.3f, minRepMs = 500, smoothing = 0.7f,
+        // Ankle lift off the floor in torso lengths, flipped: rest reads high, a jump reads low.
+        metric = Flip(AnkleLift(V), 0.5f),
+        downBelow = 0.4f, upAbove = 0.47f, goodBelow = 0.3f, minRepMs = 500, smoothing = 0.7f,
         depthCue = "Jump a little higher", category = Category.LOWER, view = CameraView.FRONT,
         difficulty = 3, defaultTarget = 10, jumping = true, tip = "Squat, then explode up.",
         pictogram = "squat",
@@ -204,14 +219,14 @@ object ExerciseCatalog {
     val GluteBridge = ExerciseSpec(
         id = "bridge", name = "Glute bridge", unit = "bridges",
         // Hips rise to ~170°; flipped so the flat-on-the-floor start reads high.
-        metric = Flip(hipAngle, 300f), downBelow = 135f, upAbove = 160f, goodBelow = 130f,
+        metric = Flip(hipAngle, 300f), downBelow = 138f, upAbove = 150f, goodBelow = 130f,
         minRepMs = 800, depthCue = "Squeeze hips higher", category = Category.LOWER, view = CameraView.SIDE,
         difficulty = 1, defaultTarget = 12, needsFloor = true, tip = "Feet flat, push through the heels.",
     )
 
     val CalfRaise = ExerciseSpec(
-        id = "calf-raise", name = "Calf raise", unit = "raises", metric = Flip(HipRise(3000f, V), 0.3f),
-        downBelow = 0.26f, upAbove = 0.285f, goodBelow = 0.24f, minRepMs = 500, smoothing = 0.6f,
+        id = "calf-raise", name = "Calf raise", unit = "raises", metric = Flip(AnkleLift(V), 0.5f),
+        downBelow = 0.46f, upAbove = 0.485f, goodBelow = 0.43f, minRepMs = 500, smoothing = 0.6f,
         depthCue = "Rise higher onto your toes", category = Category.LOWER, view = CameraView.SIDE,
         difficulty = 1, defaultTarget = 20, tip = "Slow up, slow down.",
         gates = listOf(kneesAtLeast(160f)),
@@ -333,7 +348,7 @@ object ExerciseCatalog {
 
     val SitUp = ExerciseSpec(
         id = "situp", name = "Sit-up", unit = "sit-ups", metric = hipAngle,
-        downBelow = 85f, upAbove = 140f, goodBelow = 70f, minRepMs = 800, depthCue = "Come all the way up",
+        downBelow = 85f, upAbove = 125f, goodBelow = 70f, minRepMs = 800, depthCue = "Come all the way up",
         category = Category.CORE, view = CameraView.SIDE, difficulty = 2, defaultTarget = 12, needsFloor = true,
         tip = "Lie flat, curl all the way up.", pictogram = "situp",
     )
@@ -424,17 +439,16 @@ object ExerciseCatalog {
 
     val DeadBug = ExerciseSpec(
         id = "dead-bug", name = "Dead bug", unit = "reps",
-        metric = Flip(Dist(wrL, anR, V), 3f), metricB = Flip(Dist(wrR, anL, V), 3f), kind = Kind.ALTERNATING,
-        downBelow = 1.2f, upAbove = 1.7f, goodBelow = 1.0f, minRepMs = 800, depthCue = "Reach further out",
+        metric = armLegLine(armLeft = true), metricB = armLegLine(armLeft = false), kind = Kind.ALTERNATING,
+        downBelow = 205f, upAbove = 250f, goodBelow = 195f, minRepMs = 800, depthCue = "Reach further out",
         category = Category.CORE, view = CameraView.FLOOR, difficulty = 1, defaultTarget = 16, needsFloor = true,
         tip = "Opposite arm and leg reach out, lower back stays flat.", pictogram = "situp",
     )
 
     val BirdDog = ExerciseSpec(
         id = "bird-dog", name = "Bird dog", unit = "reps",
-        metric = Flip(SideAngle(tri(Landmark.LEFT_WRIST, Landmark.LEFT_HIP, Landmark.RIGHT_ANKLE), V), 360f),
-        metricB = Flip(SideAngle(tri(Landmark.RIGHT_WRIST, Landmark.RIGHT_HIP, Landmark.LEFT_ANKLE), V), 360f),
-        kind = Kind.ALTERNATING, downBelow = 200f, upAbove = 250f, goodBelow = 195f, minRepMs = 1000,
+        metric = armLegLine(armLeft = true), metricB = armLegLine(armLeft = false),
+        kind = Kind.ALTERNATING, downBelow = 205f, upAbove = 250f, goodBelow = 195f, minRepMs = 1000,
         depthCue = "Reach arm and leg into one line", category = Category.CORE, view = CameraView.SIDE,
         difficulty = 2, defaultTarget = 12, needsFloor = true, tip = "Opposite arm and leg out, hold a beat.",
         pictogram = "plank",
@@ -455,11 +469,16 @@ object ExerciseCatalog {
     private val squatStage = Stage("squat", Range(knee, 0f, 120f), Range(lean, 0f, 65f))
     private val plankStage = Stage("plank", Range(bodyLine, 150f, 400f), Range(lean, 60f, 180f))
 
+    /** Airborne: ankles clearly off the floor (separates the burpee jump from a plain stand-up). */
+    private val burpeeLift = AnkleLift(V)
+    private val jumpStage = Stage("jump", Range(burpeeLift, 0.1f, 9f))
+
     val Burpee = ExerciseSpec(
-        id = "burpee", name = "Burpee", unit = "burpees", metric = lean, kind = Kind.SEQUENCE,
+        id = "burpee", name = "Burpee", unit = "burpees", metric = burpeeLift, kind = Kind.SEQUENCE,
         minRepMs = 1500, category = Category.CARDIO, view = CameraView.SIDE, difficulty = 3, defaultTarget = 8,
-        needsFloor = true, jumping = true, tip = "Squat, plank, squat, stand. Jump at the top.",
-        stages = listOf(standStage, squatStage, plankStage, squatStage, standStage),
+        needsFloor = true, jumping = true, tip = "Squat, plank, squat, then jump. No jump, no rep.",
+        stages = listOf(standStage, squatStage, plankStage, squatStage, jumpStage),
+        abandonMs = 500,
     )
 
     val MountainClimber = ExerciseSpec(
@@ -490,13 +509,13 @@ object ExerciseCatalog {
         id = "shadow-boxing", name = "Shadow boxing", unit = "punches",
         metric = Flip(Dist(wrL, shL, V), 3f), metricB = Flip(Dist(wrR, shR, V), 3f), kind = Kind.ALTERNATING,
         downBelow = 2.1f, upAbove = 2.35f, goodBelow = 2.0f, minRepMs = 250, smoothing = 0.7f,
-        depthCue = "Punch all the way out", category = Category.CARDIO, view = CameraView.FRONT,
-        difficulty = 1, defaultTarget = 40, tip = "Fast straight punches, guard back up.", pictogram = "jack",
+        depthCue = "Punch all the way out", category = Category.CARDIO, view = CameraView.SIDE,
+        difficulty = 1, defaultTarget = 40, tip = "Stand side-on. Fast straight punches, guard back up.", pictogram = "jack",
     )
 
     val JumpRope = ExerciseSpec(
-        id = "jump-rope", name = "Jump rope", unit = "jumps", metric = Flip(HipRise(2500f, V), 0.5f),
-        downBelow = 0.46f, upAbove = 0.48f, goodBelow = 0.44f, minRepMs = 250, smoothing = 0.7f,
+        id = "jump-rope", name = "Jump rope", unit = "jumps", metric = Flip(AnkleLift(V), 0.5f),
+        downBelow = 0.45f, upAbove = 0.48f, goodBelow = 0.42f, minRepMs = 250, smoothing = 0.7f,
         depthCue = "Bounce a little higher", category = Category.CARDIO, view = CameraView.FRONT,
         difficulty = 1, defaultTarget = 40, jumping = true, tip = "Imaginary rope, small quick hops.",
         pictogram = "jack",
@@ -575,8 +594,9 @@ object ExerciseCatalog {
 
     val TorsoTwist = ExerciseSpec(
         id = "torso-twist", name = "Standing torso twist", unit = "twists",
-        metric = Flip(ShoulderTurn(1f, V), 1f), metricB = Flip(ShoulderTurn(-1f, V), 1f), kind = Kind.ALTERNATING,
-        downBelow = 0.65f, upAbove = 0.9f, goodBelow = 0.55f, minRepMs = 600,
+        // Shoulders look narrower as they turn away from the camera (either way: each turn is one twist).
+        metric = Flip(ShoulderSpanDrop(V), 1f),
+        downBelow = 0.88f, upAbove = 0.93f, goodBelow = 0.84f, minRepMs = 500,
         depthCue = "Twist further around", category = Category.MOBILITY, view = CameraView.FRONT,
         difficulty = 1, defaultTarget = 16, tip = "Feet planted, rotate from the waist.", pictogram = "jack",
     )

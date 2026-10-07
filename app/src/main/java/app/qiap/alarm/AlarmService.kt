@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import app.qiap.QiapApp
 import app.qiap.R
 import app.qiap.core.common.twelveHour
+import app.qiap.exercise.ExerciseCatalog
 import app.qiap.exercise.ExercisePools
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +40,9 @@ data class RingRequest(
     val volume: Float,
     val snoozeMax: Int = 0,
     val snoozesUsed: Int = 0,
+    /** Exercise ids to do in order; empty = just [exerciseId] for [target]. */
+    val routine: List<String> = emptyList(),
+    val snoozeMini: Boolean = false,
 ) {
     val snoozesLeft: Int get() = if (alarmId == AlarmScheduler.TEST_ID) 0 else (snoozeMax - snoozesUsed).coerceAtLeast(0)
 
@@ -46,6 +50,7 @@ data class RingRequest(
         .putExtra(K_ID, alarmId).putExtra(K_H, hour).putExtra(K_M, minute).putExtra(K_LABEL, label)
         .putExtra(K_EX, exerciseId).putExtra(K_TARGET, target).putExtra(K_VOL, volume)
         .putExtra(K_SNOOZE_MAX, snoozeMax).putExtra(K_SNOOZE_USED, snoozesUsed)
+        .putStringArrayListExtra(K_ROUTINE, ArrayList(routine)).putExtra(K_MINI, snoozeMini)
 
     companion object {
         private const val K_ID = "ring.id"
@@ -57,13 +62,19 @@ data class RingRequest(
         private const val K_VOL = "ring.vol"
         private const val K_SNOOZE_MAX = "ring.snoozeMax"
         private const val K_SNOOZE_USED = "ring.snoozeUsed"
+        private const val K_ROUTINE = "ring.routine"
+        private const val K_MINI = "ring.mini"
 
         /** A pool alarm draws its exercise now, at ring time, and uses that exercise's own default target. */
         fun from(a: Alarm): RingRequest {
-            val pick = ExercisePools.byId(a.poolId)?.members?.randomOrNull()
+            val routine = a.routine.filter { ExerciseCatalog.byId(it) != null }
+            val pick = if (routine.isEmpty()) ExercisePools.byId(a.poolId)?.members?.randomOrNull() else null
+            val first = routine.firstOrNull()?.let { ExerciseCatalog.byId(it) }
             return RingRequest(
                 a.id, a.hour, a.minute, a.label.ifBlank { a.daysLabel() },
-                pick?.id ?: a.exerciseId, pick?.defaultTarget ?: a.target, a.volume, a.snoozeMax,
+                exerciseId = first?.id ?: pick?.id ?: a.exerciseId,
+                target = first?.defaultTarget ?: pick?.defaultTarget ?: a.target,
+                volume = a.volume, snoozeMax = a.snoozeMax, routine = routine, snoozeMini = a.snoozeMini,
             )
         }
 
@@ -71,6 +82,7 @@ data class RingRequest(
             i.getIntExtra(K_ID, -1), i.getIntExtra(K_H, 0), i.getIntExtra(K_M, 0), i.getStringExtra(K_LABEL) ?: "",
             i.getStringExtra(K_EX) ?: "squat", i.getIntExtra(K_TARGET, 12), i.getFloatExtra(K_VOL, 0.8f),
             i.getIntExtra(K_SNOOZE_MAX, 0), i.getIntExtra(K_SNOOZE_USED, 0),
+            i.getStringArrayListExtra(K_ROUTINE) ?: emptyList(), i.getBooleanExtra(K_MINI, false),
         )
     }
 }
@@ -131,6 +143,7 @@ class AlarmService : Service() {
                 Outcome.valueOf(intent.getStringExtra(EXTRA_OUTCOME) ?: Outcome.FALLBACK.name),
                 intent.getIntExtra(EXTRA_REPS, 0),
                 intent.getIntExtra(EXTRA_SECONDS, 0),
+                intent.getStringExtra(EXTRA_EXERCISE),
             )
             ACTION_SNOOZE -> snooze()
             else -> if (_state.value == null) stopSelf()
@@ -140,7 +153,7 @@ class AlarmService : Service() {
     }
 
     private fun startRing(request: RingRequest, startedAtMs: Long = System.currentTimeMillis()) {
-        val left = startedAtMs + MAX_RING_MS - System.currentTimeMillis()
+        val left = RingRules.remainingRingMs(startedAtMs, System.currentTimeMillis(), MAX_RING_MS)
         _state.value = RingState(request, startedAtMs, workoutStarted = false)
         container.ringStore.set(PersistedRing(request, startedAtMs))
         if (left <= 0) {
@@ -179,7 +192,7 @@ class AlarmService : Service() {
         teardown()
     }
 
-    private fun finishRing(outcome: Outcome, reps: Int, seconds: Int) {
+    private fun finishRing(outcome: Outcome, reps: Int, seconds: Int, exerciseId: String? = null) {
         val s = _state.value
         if (s != null && s.request.alarmId != AlarmScheduler.TEST_ID) {
             val now = LocalTime.now()
@@ -191,7 +204,7 @@ class AlarmService : Service() {
                     alarmMinuteOfDay = s.request.hour * 60 + s.request.minute,
                     endedMinuteOfDay = now.hour * 60 + now.minute,
                     outcome = outcome,
-                    exerciseId = s.request.exerciseId,
+                    exerciseId = exerciseId ?: s.request.exerciseId,
                     reps = reps,
                     seconds = seconds,
                 ),
@@ -232,6 +245,7 @@ class AlarmService : Service() {
         private const val EXTRA_OUTCOME = "outcome"
         private const val EXTRA_REPS = "reps"
         private const val EXTRA_SECONDS = "seconds"
+        private const val EXTRA_EXERCISE = "exercise"
 
         private val _state = MutableStateFlow<RingState?>(null)
         /** Non-null while an alarm is ringing (including during its workout). */
@@ -252,10 +266,12 @@ class AlarmService : Service() {
             context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_SNOOZE))
         }
 
-        fun finish(context: Context, outcome: Outcome, reps: Int, seconds: Int) {
+        /** [exerciseId] overrides which exercise the history entry credits (the last move of a routine). */
+        fun finish(context: Context, outcome: Outcome, reps: Int, seconds: Int, exerciseId: String? = null) {
             context.startService(
                 Intent(context, AlarmService::class.java).setAction(ACTION_FINISH)
-                    .putExtra(EXTRA_OUTCOME, outcome.name).putExtra(EXTRA_REPS, reps).putExtra(EXTRA_SECONDS, seconds),
+                    .putExtra(EXTRA_OUTCOME, outcome.name).putExtra(EXTRA_REPS, reps).putExtra(EXTRA_SECONDS, seconds)
+                    .putExtra(EXTRA_EXERCISE, exerciseId),
             )
         }
 

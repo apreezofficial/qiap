@@ -70,6 +70,8 @@ fun RingingScreen(
     onStartWorkout: () -> Unit,
     onFallback: () -> Unit,
     snoozesLeft: Int = 0,
+    snoozeNeedsMiniSet: Boolean = false,
+    moveCount: Int = 1,
     onSnooze: (() -> Unit)? = null,
 ) {
     val colors = QiapTheme.colors
@@ -89,7 +91,7 @@ fun RingingScreen(
                 )
                 if (snoozesLeft > 0 && onSnooze != null) {
                     PillButton(
-                        "Snooze 5 min · $snoozesLeft left",
+                        if (snoozeNeedsMiniSet) "Earn a snooze · mini set · $snoozesLeft left" else "Snooze 5 min · $snoozesLeft left",
                         onClick = onSnooze,
                         style = PillButtonStyle.Secondary,
                         modifier = Modifier.fillMaxWidth(),
@@ -112,7 +114,7 @@ fun RingingScreen(
         }
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             TwoToneHeadline(
-                "$target $exerciseUnit",
+                if (moveCount > 1) "$moveCount moves" else "$target $exerciseUnit",
                 "to silence me.",
                 style = QiapTheme.type.h2.copy(fontSize = 26.sp, lineHeight = 30.sp),
                 textAlign = TextAlign.Center,

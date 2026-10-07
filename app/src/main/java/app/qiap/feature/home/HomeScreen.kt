@@ -243,7 +243,11 @@ private fun AlarmCard(alarm: Alarm, countdown: String?, phase: Float, onClick: (
             DayDots(alarm.dayFlags())
             val pool = ExercisePools.byId(alarm.poolId)
             Chip(
-                if (pool != null) "Random · ${pool.name}" else "${alarm.target} ${spec.unit}",
+                when {
+                    alarm.routine.isNotEmpty() -> "Routine · ${alarm.routine.size} moves"
+                    pool != null -> "Random · ${pool.name}"
+                    else -> "${alarm.target} ${spec.unit}"
+                },
                 tone = ChipTone.Muted,
                 leading = { Pictogram(pictogramFor(spec.id), Modifier.size(18.dp), showFloor = false, phase = phase) },
             )

@@ -79,6 +79,7 @@ class RepCounter(private val spec: ExerciseSpec) {
     private var armed = false
     private var stageIndex = 1
     private var lastSeqRepAt = Long.MIN_VALUE / 2
+    private var startPoseSince = -1L
 
     private var lastValue = Float.NaN
 
@@ -122,6 +123,7 @@ class RepCounter(private val spec: ExerciseSpec) {
         armed = false
         stageIndex = 1
         lastSeqRepAt = Long.MIN_VALUE / 2
+        startPoseSince = -1L
         lastValue = Float.NaN
         reps = 0
         tracking = false
@@ -260,6 +262,7 @@ class RepCounter(private val spec: ExerciseSpec) {
             return RepEvent.NONE
         }
         if (state == 1) {
+            startPoseSince = -1L
             stageIndex++
             if (stageIndex >= stages.size) {
                 stageIndex = 1
@@ -270,9 +273,18 @@ class RepCounter(private val spec: ExerciseSpec) {
                     return RepEvent.REP
                 }
             }
-        } else if (stageIndex > 1 && stageState(stages[0], frame) == 1) {
-            // Back to the start position mid-move: the rep was abandoned.
-            stageIndex = 1
+        } else if (stageIndex > 1) {
+            if (stageState(stages[0], frame) == 1) {
+                // Back in the start pose mid-move. A jump passes through it for a frame or two, so
+                // only give up once it has been held for abandonMs.
+                if (startPoseSince < 0) startPoseSince = frame.timestampMs
+                if (frame.timestampMs - startPoseSince >= spec.abandonMs) {
+                    stageIndex = 1
+                    startPoseSince = -1L
+                }
+            } else {
+                startPoseSince = -1L
+            }
         }
         return RepEvent.NONE
     }

@@ -153,16 +153,29 @@ class SignedLean(private val sign: Float, private val minVisibility: Float) : Me
 }
 
 /**
- * Which way the shoulders are turned, from MediaPipe's relative depth, in torso lengths. Noisy,
- * so twists use wide thresholds. [sign] picks which direction reads positive.
+ * How much narrower the shoulders look than usual, 0 = square to the camera, ~0.2 = turned about
+ * 35°. Uses the on-screen shoulder width only (MediaPipe's depth is too noisy to trust), measured
+ * against the widest recent width, which slowly decays so walking away doesn't read as a twist.
  */
-class ShoulderTurn(private val sign: Float, private val minVisibility: Float) : Metric {
+class ShoulderSpanDrop(private val minVisibility: Float, private val decayTauMs: Float = 6000f) : Metric {
+    private var peak = Float.NaN
+    private var lastT = 0L
+
     override fun measure(frame: PoseFrame): Float {
         if (frame.minVisibility(SHOULDER_PAIR) < minVisibility) return Float.NaN
-        val t = frame.torsoLength()
-        if (t.isNaN()) return Float.NaN
-        // z shares x's scale, so apply the same aspect correction.
-        return sign * (frame.z[Landmark.RIGHT_SHOULDER] - frame.z[Landmark.LEFT_SHOULDER]) * frame.aspect / t
+        val span = abs(frame.x[Landmark.LEFT_SHOULDER] - frame.x[Landmark.RIGHT_SHOULDER]) * frame.aspect
+        if (span < 0.02f) return Float.NaN
+        val dt = (frame.timestampMs - lastT).coerceAtLeast(0L)
+        lastT = frame.timestampMs
+        peak = when {
+            peak.isNaN() || span >= peak -> span
+            else -> peak - (peak - span) * (1f - exp(-dt / decayTauMs))
+        }
+        return (peak - span) / peak
+    }
+
+    override fun reset() {
+        peak = Float.NaN
     }
 }
 
@@ -230,6 +243,46 @@ class HipRise(tauMs: Float, private val minVisibility: Float) : Metric {
     }
 
     override fun reset() = baseline.reset()
+}
+
+/**
+ * How far the feet are off the floor, in torso lengths: the one signal that separates a real
+ * jump from squatting, standing up or dropping into a plank (feet stay planted in all of those).
+ * The floor level is the lowest the ankles have recently been: it follows the ankles down fast
+ * (walking toward the camera) and back up slowly, so an airborne moment reads as clear lift.
+ */
+class AnkleLift(private val minVisibility: Float) : Metric {
+    private val ankles = intArrayOf(Landmark.LEFT_ANKLE, Landmark.RIGHT_ANKLE)
+    private var floor = Float.NaN
+    private var lastT = 0L
+
+    override fun measure(frame: PoseFrame): Float {
+        if (frame.minVisibility(ankles) < minVisibility) return Float.NaN
+        val t = frame.torsoLength()
+        if (t.isNaN()) return Float.NaN
+        val y = frame.midY(ankles) // larger y = lower on screen
+        val dt = (frame.timestampMs - lastT).coerceAtLeast(0L)
+        lastT = frame.timestampMs
+        val lift: Float
+        if (floor.isNaN()) {
+            floor = y
+            lift = 0f
+        } else {
+            lift = (floor - y) / t
+            val tau = if (y > floor) FLOOR_DOWN_TAU_MS else FLOOR_UP_TAU_MS
+            floor += (1f - exp(-dt / tau)) * (y - floor)
+        }
+        return lift
+    }
+
+    override fun reset() {
+        floor = Float.NaN
+    }
+
+    private companion object {
+        const val FLOOR_DOWN_TAU_MS = 300f
+        const val FLOOR_UP_TAU_MS = 5000f
+    }
 }
 
 /** Sideways hip travel from the usual spot, in torso lengths; [sign] picks which direction reads positive. */

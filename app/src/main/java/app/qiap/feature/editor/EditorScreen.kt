@@ -71,12 +71,22 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
     var target by rememberSaveable { mutableIntStateOf(start.target) }
     var volume by rememberSaveable { mutableFloatStateOf(start.volume) }
     var snoozeMax by rememberSaveable { mutableIntStateOf(start.snoozeMax) }
+    var snoozeMini by rememberSaveable { mutableStateOf(start.snoozeMini) }
     var poolId by rememberSaveable { mutableStateOf(start.poolId) }
+    // Routine = up to three moves in order; kept as a comma-joined string so it survives rotation.
+    var routineMode by rememberSaveable { mutableStateOf(start.routine.isNotEmpty()) }
+    var routineCsv by rememberSaveable { mutableStateOf(start.routine.joinToString(",")) }
     var categoryFilter by remember { mutableStateOf<Category?>(null) }
-    val pool = ExercisePools.byId(poolId)
+    val pool = if (routineMode) null else ExercisePools.byId(poolId)
+    val routine = if (routineMode) routineCsv.split(",").filter { ExerciseCatalog.byId(it) != null } else emptyList()
     val spec = ExerciseCatalog.byId(exerciseId) ?: ExerciseCatalog.Squat
 
-    val draft = start.copy(hour = hour, minute = minute, days = days, exerciseId = spec.id, target = target, volume = volume, snoozeMax = snoozeMax, poolId = if (pool != null) pool.id else "", enabled = true)
+    val draft = start.copy(
+        hour = hour, minute = minute, days = days,
+        exerciseId = routine.firstOrNull() ?: spec.id,
+        target = target, volume = volume, snoozeMax = snoozeMax, snoozeMini = snoozeMini && snoozeMax > 0,
+        poolId = if (pool != null) pool.id else "", routine = routine, enabled = true,
+    )
     val now = ZonedDateTime.now()
     val inMinutes = ((Duration.between(now, nextTrigger(draft, now)).seconds + 59) / 60).toInt()
 
@@ -115,11 +125,12 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
                 QiapText("Exercise", style = QiapTheme.type.title)
                 Chip("Browse library", onClick = onSeeAllExercises)
             }
-            // One fixed exercise, or "surprise me" from a preset pool (details.md §8).
+            // One fixed exercise, a routine of up to three, or "surprise me" from a preset pool (details.md §8).
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
-                Chip("Pick one", selected = poolId.isEmpty(), onClick = { poolId = "" })
+                Chip("Pick one", selected = !routineMode && poolId.isEmpty(), onClick = { routineMode = false; poolId = "" })
+                Chip("Routine", selected = routineMode, onClick = { routineMode = true; poolId = "" })
                 for (p in ExercisePools.all) {
-                    Chip("Random · ${p.name}", selected = poolId == p.id, onClick = { poolId = p.id })
+                    Chip("Random · ${p.name}", selected = !routineMode && poolId == p.id, onClick = { routineMode = false; poolId = p.id })
                 }
             }
             if (pool != null) {
@@ -132,6 +143,23 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
                     )
                 }
             } else {
+                if (routineMode) {
+                    QiapText(
+                        if (routine.isEmpty()) "Tap up to ${Alarm.MAX_ROUTINE} exercises below, in the order you will do them."
+                        else "Tap a move to remove it.",
+                        style = QiapTheme.type.caption,
+                        color = colors.ink3,
+                    )
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+                        routine.forEachIndexed { i, id ->
+                            Chip(
+                                "${i + 1}. ${ExerciseCatalog.byId(id)?.name ?: id}",
+                                selected = true,
+                                onClick = { routineCsv = routine.filterIndexed { j, _ -> j != i }.joinToString(",") },
+                            )
+                        }
+                    }
+                }
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
                     Chip("All", selected = categoryFilter == null, onClick = { categoryFilter = null })
                     for (c in Category.entries) {
@@ -146,21 +174,34 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
                     horizontalArrangement = Arrangement.spacedBy(QiapSpacing.sm),
                 ) {
                     ExerciseCatalog.all.filter { categoryFilter == null || it.category == categoryFilter }.forEachIndexed { i, ex ->
+                        val selected = if (routineMode) ex.id in routine else ex.id == spec.id
                         ExercisePickerItem(
-                            ex.name, pictogramFor(ex.id), selected = ex.id == spec.id, phase = i * 0.17f,
-                            animate = ex.id == spec.id,
-                            onClick = { exerciseId = ex.id; target = ex.defaultTarget },
+                            ex.name, pictogramFor(ex.id), selected = selected, phase = i * 0.17f,
+                            animate = selected,
+                            onClick = {
+                                if (routineMode) {
+                                    if (routine.size < Alarm.MAX_ROUTINE) routineCsv = (routine + ex.id).joinToString(",")
+                                } else {
+                                    exerciseId = ex.id
+                                    target = ex.defaultTarget
+                                }
+                            },
                         )
                     }
                 }
-                if (spec.provisional) {
-                    QiapText("Beta: ${spec.name} counting is still being tuned. The emergency exit is always there.", style = QiapTheme.type.caption, color = colors.ink3)
+                val betaSpec = if (routineMode) routine.lastOrNull()?.let { ExerciseCatalog.byId(it) } else spec
+                if (betaSpec != null && betaSpec.provisional) {
+                    QiapText(
+                        "Beta: ${betaSpec.name} counting is still being tuned. The emergency exit is always there.",
+                        style = QiapTheme.type.caption,
+                        color = colors.ink3,
+                    )
                 }
             }
         }
 
         QiapCard(size = CardSize.Small, verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
-            if (pool == null) {
+            if (pool == null && !routineMode) {
                 ListRow(
                     "Target",
                     subtitle = "${spec.unit} to stop the alarm",
@@ -189,6 +230,9 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
                     for (n in 0..Alarm.MAX_SNOOZES) {
                         Chip(if (n == 0) "Off" else "${n}×", selected = snoozeMax == n, onClick = { snoozeMax = n }, modifier = Modifier.weight(1f))
                     }
+                }
+                if (snoozeMax > 0) {
+                    Chip("Earn each snooze with a mini set", selected = snoozeMini, onClick = { snoozeMini = !snoozeMini })
                 }
             }
             HairlineDivider()

@@ -43,6 +43,7 @@ data class RingRequest(
     /** Exercise ids to do in order; empty = just [exerciseId] for [target]. */
     val routine: List<String> = emptyList(),
     val snoozeMini: Boolean = false,
+    val videoProof: Boolean = false,
 ) {
     val snoozesLeft: Int get() = if (alarmId == AlarmScheduler.TEST_ID) 0 else (snoozeMax - snoozesUsed).coerceAtLeast(0)
 
@@ -50,7 +51,7 @@ data class RingRequest(
         .putExtra(K_ID, alarmId).putExtra(K_H, hour).putExtra(K_M, minute).putExtra(K_LABEL, label)
         .putExtra(K_EX, exerciseId).putExtra(K_TARGET, target).putExtra(K_VOL, volume)
         .putExtra(K_SNOOZE_MAX, snoozeMax).putExtra(K_SNOOZE_USED, snoozesUsed)
-        .putStringArrayListExtra(K_ROUTINE, ArrayList(routine)).putExtra(K_MINI, snoozeMini)
+        .putStringArrayListExtra(K_ROUTINE, ArrayList(routine)).putExtra(K_MINI, snoozeMini).putExtra(K_VIDEO, videoProof)
 
     companion object {
         private const val K_ID = "ring.id"
@@ -64,6 +65,7 @@ data class RingRequest(
         private const val K_SNOOZE_USED = "ring.snoozeUsed"
         private const val K_ROUTINE = "ring.routine"
         private const val K_MINI = "ring.mini"
+        private const val K_VIDEO = "ring.video"
 
         /** A pool alarm draws its exercise now, at ring time, and uses that exercise's own default target. */
         fun from(a: Alarm): RingRequest {
@@ -74,7 +76,7 @@ data class RingRequest(
                 a.id, a.hour, a.minute, a.label.ifBlank { a.daysLabel() },
                 exerciseId = first?.id ?: pick?.id ?: a.exerciseId,
                 target = first?.defaultTarget ?: pick?.defaultTarget ?: a.target,
-                volume = a.volume, snoozeMax = a.snoozeMax, routine = routine, snoozeMini = a.snoozeMini,
+                volume = a.volume, snoozeMax = a.snoozeMax, routine = routine, snoozeMini = a.snoozeMini, videoProof = a.videoProof,
             )
         }
 
@@ -83,6 +85,7 @@ data class RingRequest(
             i.getStringExtra(K_EX) ?: "squat", i.getIntExtra(K_TARGET, 12), i.getFloatExtra(K_VOL, 0.8f),
             i.getIntExtra(K_SNOOZE_MAX, 0), i.getIntExtra(K_SNOOZE_USED, 0),
             i.getStringArrayListExtra(K_ROUTINE) ?: emptyList(), i.getBooleanExtra(K_MINI, false),
+            i.getBooleanExtra(K_VIDEO, false),
         )
     }
 }
@@ -144,6 +147,7 @@ class AlarmService : Service() {
                 intent.getIntExtra(EXTRA_REPS, 0),
                 intent.getIntExtra(EXTRA_SECONDS, 0),
                 intent.getStringExtra(EXTRA_EXERCISE),
+                intent.getStringExtra(EXTRA_VIDEO),
             )
             ACTION_SNOOZE -> snooze()
             else -> if (_state.value == null) stopSelf()
@@ -192,7 +196,7 @@ class AlarmService : Service() {
         teardown()
     }
 
-    private fun finishRing(outcome: Outcome, reps: Int, seconds: Int, exerciseId: String? = null) {
+    private fun finishRing(outcome: Outcome, reps: Int, seconds: Int, exerciseId: String? = null, videoPath: String? = null) {
         val s = _state.value
         if (s != null && s.request.alarmId != AlarmScheduler.TEST_ID) {
             val now = LocalTime.now()
@@ -207,6 +211,7 @@ class AlarmService : Service() {
                     exerciseId = exerciseId ?: s.request.exerciseId,
                     reps = reps,
                     seconds = seconds,
+                    videoPath = videoPath,
                 ),
             )
         }
@@ -246,6 +251,7 @@ class AlarmService : Service() {
         private const val EXTRA_REPS = "reps"
         private const val EXTRA_SECONDS = "seconds"
         private const val EXTRA_EXERCISE = "exercise"
+        private const val EXTRA_VIDEO = "video"
 
         private val _state = MutableStateFlow<RingState?>(null)
         /** Non-null while an alarm is ringing (including during its workout). */
@@ -267,11 +273,11 @@ class AlarmService : Service() {
         }
 
         /** [exerciseId] overrides which exercise the history entry credits (the last move of a routine). */
-        fun finish(context: Context, outcome: Outcome, reps: Int, seconds: Int, exerciseId: String? = null) {
+        fun finish(context: Context, outcome: Outcome, reps: Int, seconds: Int, exerciseId: String? = null, videoPath: String? = null) {
             context.startService(
                 Intent(context, AlarmService::class.java).setAction(ACTION_FINISH)
                     .putExtra(EXTRA_OUTCOME, outcome.name).putExtra(EXTRA_REPS, reps).putExtra(EXTRA_SECONDS, seconds)
-                    .putExtra(EXTRA_EXERCISE, exerciseId),
+                    .putExtra(EXTRA_EXERCISE, exerciseId).putExtra(EXTRA_VIDEO, videoPath),
             )
         }
 

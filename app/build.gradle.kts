@@ -76,6 +76,8 @@ dependencies {
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
+    // Video proof (details.md §10): record the workout alongside the preview. Same camerax version.
+    implementation(libs.androidx.camera.video)
     // Compose viewfinder for the preview, so the workout screen stays pure Compose.
     implementation(libs.androidx.camera.compose)
     // On-device pose landmarks (CLAUDE.md stack), behind the PoseEngine interface.

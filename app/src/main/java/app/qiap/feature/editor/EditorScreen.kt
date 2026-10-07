@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import app.qiap.QiapApp
 import app.qiap.alarm.Alarm
 import app.qiap.alarm.nextTrigger
+import app.qiap.camera.ProofStore
 import app.qiap.core.common.formatCountdown
 import app.qiap.core.designsystem.component.CardSize
 import app.qiap.core.designsystem.component.CardTone
@@ -72,6 +73,7 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
     var volume by rememberSaveable { mutableFloatStateOf(start.volume) }
     var snoozeMax by rememberSaveable { mutableIntStateOf(start.snoozeMax) }
     var snoozeMini by rememberSaveable { mutableStateOf(start.snoozeMini) }
+    var videoProof by rememberSaveable { mutableStateOf(start.videoProof) }
     var poolId by rememberSaveable { mutableStateOf(start.poolId) }
     // Routine = up to three moves in order; kept as a comma-joined string so it survives rotation.
     var routineMode by rememberSaveable { mutableStateOf(start.routine.isNotEmpty()) }
@@ -84,7 +86,7 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
     val draft = start.copy(
         hour = hour, minute = minute, days = days,
         exerciseId = routine.firstOrNull() ?: spec.id,
-        target = target, volume = volume, snoozeMax = snoozeMax, snoozeMini = snoozeMini && snoozeMax > 0,
+        target = target, volume = volume, snoozeMax = snoozeMax, snoozeMini = snoozeMini && snoozeMax > 0, videoProof = videoProof,
         poolId = if (pool != null) pool.id else "", routine = routine, enabled = true,
     )
     val now = ZonedDateTime.now()
@@ -235,6 +237,13 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
                     Chip("Earn each snooze with a mini set", selected = snoozeMini, onClick = { snoozeMini = !snoozeMini })
                 }
             }
+            HairlineDivider()
+            ListRow(
+                "Video proof",
+                subtitle = "Records the workout on your phone only. Kept ${ProofStore.retentionDays(context)} days, then deleted.",
+                leading = { IconTile(QiapIcons.Video, null, size = 40.dp, background = colors.bgWash) },
+                trailing = { Chip(if (videoProof) "On" else "Off", selected = videoProof, onClick = { videoProof = !videoProof }) },
+            )
             HairlineDivider()
             Column(Modifier.padding(top = QiapSpacing.xs)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

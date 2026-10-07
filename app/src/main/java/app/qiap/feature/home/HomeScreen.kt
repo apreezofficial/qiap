@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -28,6 +29,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.qiap.BuildConfig
 import app.qiap.QiapApp
+import app.qiap.camera.ProofStore
 import app.qiap.alarm.Alarm
 import app.qiap.alarm.Check
 import app.qiap.alarm.HistoryStats
@@ -61,7 +63,9 @@ import app.qiap.core.designsystem.theme.bleedHorizontal
 import app.qiap.exercise.ExerciseCatalog
 import app.qiap.exercise.ExercisePools
 import app.qiap.feature.pictogramFor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.ZonedDateTime
 
@@ -90,6 +94,8 @@ fun HomeScreen(
     val stats = remember(entries, now.toLocalDate()) { HistoryStats.from(entries, now.toLocalDate()) }
     var checks by remember { mutableStateOf(container.reliability.status()) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { checks = container.reliability.status() }
+    // Video proofs are private and temporary: sweep the ones past their retention period.
+    LaunchedEffect(Unit) { withContext(Dispatchers.IO) { runCatching { ProofStore.cleanup(context) } } }
 
     val next = alarms.filter { it.enabled }.map { it to nextTrigger(it, now) }.minByOrNull { it.second }
     val greeting = when (now.hour) {

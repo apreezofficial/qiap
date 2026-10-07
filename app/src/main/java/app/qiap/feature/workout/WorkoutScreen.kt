@@ -61,6 +61,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.qiap.BuildConfig
 import app.qiap.QiapApp
 import app.qiap.camera.PoseCamera
+import app.qiap.camera.ProofRecorder
+import app.qiap.camera.ProofState
 import app.qiap.core.designsystem.component.CardSize
 import app.qiap.core.designsystem.component.Chip
 import app.qiap.core.designsystem.component.ChipTone
@@ -86,6 +88,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -107,6 +110,10 @@ fun WorkoutScreen(
      * Null in previews, where a demo stand-in keeps the flow alive instead.
      */
     onGiveUp: ((reason: String) -> Unit)? = null,
+    /** Record a private video of the workout (real alarms with video proof on). */
+    recordProof: Boolean = false,
+    /** Called with the video file path as soon as recording starts. */
+    onProofFile: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     var granted by remember {
@@ -121,7 +128,7 @@ fun WorkoutScreen(
 
     val giveUp by rememberUpdatedState(onGiveUp)
     if (granted) {
-        LiveWorkout(exercise, target, onComplete, onGiveUp)
+        LiveWorkout(exercise, target, onComplete, onGiveUp, recordProof, onProofFile)
     } else if (onGiveUp != null) {
         // A real alarm never falls back to the demo (its "+1 rep" would be a free pass).
         LaunchedEffect(asked) { if (asked) giveUp?.invoke("The camera is off, so I can't count reps.") }
@@ -153,7 +160,14 @@ private sealed interface EngineState {
 }
 
 @Composable
-private fun LiveWorkout(exercise: ExerciseSpec, target: Int, onComplete: (Int, Int) -> Unit, onGiveUp: ((String) -> Unit)?) {
+private fun LiveWorkout(
+    exercise: ExerciseSpec,
+    target: Int,
+    onComplete: (Int, Int) -> Unit,
+    onGiveUp: ((String) -> Unit)?,
+    recordProof: Boolean,
+    onProofFile: (String) -> Unit,
+) {
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val container = remember { (context.applicationContext as QiapApp).container }
@@ -221,7 +235,15 @@ private fun LiveWorkout(exercise: ExerciseSpec, target: Int, onComplete: (Int, I
         }
         EngineState.Loading -> CameraStage { QiapText("Waking up the camera…", style = QiapTheme.type.caption, color = QiapTheme.colors.ink3, modifier = Modifier.align(Alignment.Center)) }
         is EngineState.Ready -> {
-            val camera = remember(s.engine) { PoseCamera(context, s.engine) }
+            // Video proof is best effort: PoseCamera only records if this phone can run it alongside the analysis.
+            val proof = remember(recordProof) { if (recordProof) ProofRecorder(context) else null }
+            val proofFlow = remember(proof) { proof?.state ?: MutableStateFlow(ProofState.OFF) }
+            val proofState by proofFlow.collectAsStateWithLifecycle()
+            val proofFileCallback by rememberUpdatedState(onProofFile)
+            LaunchedEffect(proofState) {
+                if (proofState == ProofState.RECORDING) proof?.file?.path?.let { proofFileCallback(it) }
+            }
+            val camera = remember(s.engine, proof) { PoseCamera(context, s.engine, proof) }
             LaunchedEffect(camera, owner) {
                 try {
                     camera.run(owner)
@@ -247,6 +269,7 @@ private fun LiveWorkout(exercise: ExerciseSpec, target: Int, onComplete: (Int, I
                     seconds = seconds,
                     cue = session.cue,
                     offForm = session.offForm,
+                    recording = proofState == ProofState.RECORDING,
                     stats = if (BuildConfig.DEBUG) "${session.fps} fps · ${session.inferenceMs} ms · ${s.engine.delegateName}" else null,
                     footer = { if (BuildConfig.DEBUG) FixtureRecorder(session) else QiapText(PRIVACY, style = QiapTheme.type.caption, color = QiapTheme.colors.ink3) },
                     onGiveUp = onGiveUp?.let { g -> { g("Injured, too dark, or just not today? Do this instead.") } },
@@ -365,6 +388,7 @@ private fun BoxScope.WorkoutHud(
     stats: String?,
     footer: @Composable RowScope.() -> Unit,
     onGiveUp: (() -> Unit)? = null,
+    recording: Boolean = false,
 ) {
     val colors = QiapTheme.colors
     val type = QiapTheme.type
@@ -387,9 +411,10 @@ private fun BoxScope.WorkoutHud(
                 horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                RecordingDot()
+                // Only claim to be recording when a video really is being written.
+                if (recording) RecordingDot()
                 QiapText(
-                    "Proof · ${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}",
+                    (if (recording) "Proof · " else "") + "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}",
                     style = type.numeric.copy(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold),
                 )
             }

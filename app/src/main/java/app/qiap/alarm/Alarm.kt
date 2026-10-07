@@ -30,6 +30,8 @@ data class Alarm(
     val routine: List<String> = emptyList(),
     /** True = snoozing isn't free: it needs a short mini set of the exercise first. */
     val snoozeMini: Boolean = false,
+    /** Record a short private video of the workout as proof (needs a phone that can run it). */
+    val videoProof: Boolean = false,
 ) {
     init {
         require(hour in 0..23 && minute in 0..59) { "bad time $hour:$minute" }

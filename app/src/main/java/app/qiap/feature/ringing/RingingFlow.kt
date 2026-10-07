@@ -54,6 +54,8 @@ fun RingingFlow(onClose: () -> Unit) {
     var seconds by rememberSaveable { mutableIntStateOf(0) }
     var fallbackReason by rememberSaveable { mutableStateOf("") }
     var fromWorkout by rememberSaveable { mutableStateOf(false) }
+    // Path of the video being recorded for the current move (null when video is off or unsupported).
+    var proofPath by remember { mutableStateOf<String?>(null) }
 
     // Load the pose model while it rings so "Start workout" opens the camera instantly.
     DisposableEffect(Unit) {
@@ -116,6 +118,8 @@ fun RingingFlow(onClose: () -> Unit) {
                 WorkoutScreen(
                     exercise = spec,
                     target = target,
+                    recordProof = request.videoProof,
+                    onProofFile = { proofPath = it },
                     onComplete = { r, s ->
                         reps += r
                         seconds += s
@@ -134,12 +138,14 @@ fun RingingFlow(onClose: () -> Unit) {
                                         exerciseId = spec.id,
                                         reps = r,
                                         seconds = s,
+                                        videoPath = proofPath,
                                     ),
                                 )
                             }
+                            proofPath = null
                             moveIndex++
                         } else {
-                            AlarmService.finish(context, Outcome.EARNED, reps, seconds, exerciseId = spec.id)
+                            AlarmService.finish(context, Outcome.EARNED, reps, seconds, exerciseId = spec.id, videoPath = proofPath)
                             step = Step.Success
                         }
                     },

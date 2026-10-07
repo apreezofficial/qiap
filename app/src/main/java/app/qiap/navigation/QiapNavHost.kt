@@ -97,7 +97,7 @@ fun QiapNavHost() {
                         LibraryScreen(onTryIt = { id -> backStack.add(WorkoutRoute(id)) }, onOverlayChange = { overlayOpen = it })
                     }
                 }
-                entry<HistoryRoute> { QiapTheme { HistoryScreen() } }
+                entry<HistoryRoute> { QiapTheme { HistoryScreen(onOverlayChange = { overlayOpen = it }) } }
                 entry<SettingsRoute> {
                     QiapTheme {
                         SettingsScreen(
@@ -139,7 +139,7 @@ fun QiapNavHost() {
         val top = backStack.lastOrNull()
         val tabIndex = TopLevelRoutes.indexOf(top)
         AnimatedVisibility(
-            visible = tabIndex >= 0 && !(overlayOpen && top == LibraryRoute),
+            visible = tabIndex >= 0 && !(overlayOpen && (top == LibraryRoute || top == HistoryRoute)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(WindowInsets.navigationBars)

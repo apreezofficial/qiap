@@ -29,6 +29,8 @@ data class HistoryEntry(
     val exerciseId: String,
     val reps: Int,
     val seconds: Int,
+    /** Absolute path of the private video proof, if one was recorded (and not yet aged out). */
+    val videoPath: String? = null,
 )
 
 /** Derived numbers for Home and History. Pure, so it's unit-tested. */

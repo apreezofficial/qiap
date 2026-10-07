@@ -23,6 +23,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import app.qiap.QiapApp
 import app.qiap.alarm.Check
+import app.qiap.camera.ProofStore
 import app.qiap.core.designsystem.component.CardSize
 import app.qiap.core.designsystem.component.CardTone
 import app.qiap.core.designsystem.component.Chip
@@ -140,9 +141,31 @@ fun SettingsScreen(onBack: () -> Unit, onOpenGallery: (() -> Unit)?) {
                 Column(Modifier.weight(1f)) {
                     QiapText("Can't do it one morning?", style = type.title)
                     QiapText(
-                        "Hold the button on the alarm for 3 s. It stops, and you get a saffron-edged seal. No judgement.",
+                        "Hold the button on the alarm for 3 s, then solve three quick sums. It stops, and you get a saffron-edged seal. No judgement.",
                         style = type.caption,
                         color = colors.ink2,
+                    )
+                }
+            }
+        }
+
+        var keepDays by remember { mutableIntStateOf(ProofStore.retentionDays(context)) }
+        QiapCard(size = CardSize.Small, verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+            ListRow(
+                "Keep video proof for",
+                subtitle = "Videos stay on this phone and are deleted after this long.",
+                leading = { IconTile(QiapIcons.Video, null, size = 40.dp, background = colors.bgWash) },
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+                for (days in listOf(7, 14, 30)) {
+                    Chip(
+                        "$days days",
+                        selected = keepDays == days,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            keepDays = days
+                            ProofStore.setRetentionDays(context, days)
+                        },
                     )
                 }
             }

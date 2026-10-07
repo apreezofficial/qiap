@@ -72,6 +72,17 @@
                 android:value="Alarm clock: plays the alarm sound until the user dismisses it by completing a workout." />
         </service>
 
+        <!-- Lets the user share a video proof from History. Only files/proofs is exposed. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.proofs"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <receiver
             android:name=".alarm.AlarmReceiver"
             android:directBootAware="true"

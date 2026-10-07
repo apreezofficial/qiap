@@ -79,6 +79,9 @@ object QiapIcons {
         lucide("Video", "M16 13l5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11", rect(2f, 6f, 14f, 12f, 2f))
     }
     val Close: ImageVector by lazy { lucide("Close", "M18 6 6 18", "M6 6l12 12") }
+    val Share: ImageVector by lazy {
+        lucide("Share", circle(18f, 5f, 3f), circle(6f, 12f, 3f), circle(18f, 19f, 3f), "M8.59 13.51l6.83 3.98", "M15.41 6.51l-6.82 3.98")
+    }
     val Timer: ImageVector by lazy { lucide("Timer", circle(12f, 14f, 8f), "M10 2h4", "M12 14l3-3") }
     val Flame: ImageVector by lazy {
         lucide(

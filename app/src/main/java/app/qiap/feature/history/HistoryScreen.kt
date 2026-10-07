@@ -11,9 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -23,12 +27,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.qiap.QiapApp
+import app.qiap.alarm.HistoryEntry
 import app.qiap.alarm.HistoryStats
 import app.qiap.alarm.Outcome
 import app.qiap.core.designsystem.component.CardSize
 import app.qiap.core.designsystem.component.CardTone
 import app.qiap.core.designsystem.component.QiapCard
 import app.qiap.core.designsystem.component.QiapScreen
+import app.qiap.core.designsystem.component.QiapSheet
 import app.qiap.core.designsystem.component.QiapText
 import app.qiap.core.designsystem.component.SealStamp
 import app.qiap.core.designsystem.component.SealState
@@ -49,7 +55,7 @@ import java.util.Locale
 
 /** History (design.md §7): streak card, this month's seals, reps per exercise. From the real log. */
 @Composable
-fun HistoryScreen() {
+fun HistoryScreen(onOverlayChange: (Boolean) -> Unit = {}) {
     val colors = QiapTheme.colors
     val type = QiapTheme.type
     val context = LocalContext.current
@@ -58,6 +64,14 @@ fun HistoryScreen() {
     val today = remember { LocalDate.now() }
     val stats = remember(entries) { HistoryStats.from(entries, today) }
 
+    val proofs = remember(entries) { proofEntries(entries) }
+    var playing by remember { mutableStateOf<HistoryEntry?>(null) }
+    // Keep the last video around so the sheet has content while it slides out.
+    val lastPlayed = remember { arrayOfNulls<HistoryEntry>(1) }
+    playing?.let { lastPlayed[0] = it }
+    LaunchedEffect(playing) { onOverlayChange(playing != null) }
+
+    Box(Modifier.fillMaxSize()) {
     QiapScreen(bottomClearance = NavClearance) {
         TwoToneHeadline("Your seals.", "One per morning you won.", Modifier.padding(top = QiapSpacing.xs))
 
@@ -97,6 +111,13 @@ fun HistoryScreen() {
                 }
             }
         }
+
+        ProofsCard(proofs, onPlay = { playing = it })
+    }
+
+    QiapSheet(visible = playing != null, onDismiss = { playing = null }) {
+        lastPlayed[0]?.let { ProofPlayer(it, onClose = { playing = null }) }
+    }
     }
 }
 

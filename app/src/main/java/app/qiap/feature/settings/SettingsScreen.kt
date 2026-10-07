@@ -24,12 +24,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import app.qiap.QiapApp
 import app.qiap.alarm.Check
 import app.qiap.alarm.OemGuides
 import app.qiap.camera.ProofStore
+import app.qiap.core.common.CrashLog
 import app.qiap.core.designsystem.component.CardSize
 import app.qiap.core.designsystem.component.CardTone
 import app.qiap.core.designsystem.component.Chip
@@ -189,6 +191,34 @@ fun SettingsScreen(onBack: () -> Unit, onOpenGallery: (() -> Unit)?) {
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 )
             })
+        }
+
+        // Crash notes stay on the phone; sharing is the user's choice (see the privacy policy).
+        var hasCrash by remember { mutableStateOf(CrashLog.exists(context)) }
+        if (hasCrash) {
+            QiapCard(size = CardSize.Small, verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+                ListRow(
+                    "Qiap crashed earlier",
+                    subtitle = "A short error note is saved on this phone. It is never sent unless you share it.",
+                    leading = { IconTile(QiapIcons.Shield, null, size = 40.dp, background = colors.saffronTint()) },
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+                    Chip("Share note", leadingIcon = QiapIcons.Share, onClick = {
+                        runCatching {
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.proofs", CrashLog.file(context))
+                            val send = Intent(Intent.ACTION_SEND)
+                                .setType("text/plain")
+                                .putExtra(Intent.EXTRA_STREAM, uri)
+                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            context.startActivity(Intent.createChooser(send, "Share crash note"))
+                        }
+                    })
+                    Chip("Delete", onClick = {
+                        CrashLog.clear(context)
+                        hasCrash = false
+                    })
+                }
+            }
         }
 
         var keepDays by remember { mutableIntStateOf(ProofStore.retentionDays(context)) }

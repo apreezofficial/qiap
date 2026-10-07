@@ -1,5 +1,6 @@
 package app.qiap.feature.editor
 
+import android.content.Context
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -105,6 +106,25 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
             })
         },
     ) {
+        // One-time health notice before the first alarm (details.md §14).
+        val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+        var healthOk by remember { mutableStateOf(prefs.getBoolean("health_ok", false)) }
+        if (!healthOk) {
+            QiapCard(size = CardSize.Small, tone = CardTone.Sky, verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+                QiapText("Before your first alarm", style = QiapTheme.type.title)
+                QiapText(
+                    "Exercise carries some risk, and this is not medical advice. Only do what is comfortable. " +
+                        "If you are hurt or cannot exercise, the emergency exit on the ringing screen always works.",
+                    style = QiapTheme.type.bodySmall,
+                    color = colors.ink2,
+                )
+                Chip("Got it", selected = true, leadingIcon = QiapIcons.Check, onClick = {
+                    healthOk = true
+                    prefs.edit().putBoolean("health_ok", true).apply()
+                })
+            }
+        }
+
         // Wheel only reports when it settles, so it starts from the stored time.
         TimeWheel(hour, minute, onChange = { h, m -> hour = h; minute = m })
 

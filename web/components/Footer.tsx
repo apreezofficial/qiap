@@ -11,7 +11,7 @@ const pages = [
 ] as const;
 
 const utility = [
-  ["Privacy policy", "#"],
+  ["Privacy policy", "/privacy"],
   ["Terms & conditions", "#"],
   ["Contact", "mailto:hello@qiap.app"],
 ] as const;

@@ -96,6 +96,33 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
 
+      # Play takes bundles, not APKs. Signed with the upload key when the secrets exist (see
+      # docs/RELEASE.md); otherwise signed with the debug key, which Play will reject.
+      - name: Release bundle (AAB)
+        env:
+          KEYSTORE_B64: ${{ secrets.QIAP_KEYSTORE_B64 }}
+          QIAP_KEYSTORE_PASSWORD: ${{ secrets.QIAP_KEYSTORE_PASSWORD }}
+          QIAP_KEY_ALIAS: ${{ secrets.QIAP_KEY_ALIAS }}
+          QIAP_KEY_PASSWORD: ${{ secrets.QIAP_KEY_PASSWORD }}
+          QIAP_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            export QIAP_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
+            echo "AAB signed with the upload key (version code $QIAP_VERSION_CODE)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice::No upload-key secrets set. The AAB is debug-signed and cannot be uploaded to Play."
+            echo "AAB is debug-signed (no upload key secrets). Not for the store." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          ./gradlew :app:bundleRelease --console=plain
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: qiap-release-aab
+          path: app/build/outputs/bundle/release/app-release.aab
+          retention-days: 14
+
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v7

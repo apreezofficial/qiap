@@ -2,6 +2,7 @@ package app.qiap.feature.ringing
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -23,7 +24,7 @@ import app.qiap.feature.success.SuccessScreen
 import app.qiap.feature.workout.WorkoutScreen
 import java.time.LocalDate
 
-private enum class Step { Ringing, Workout, Success }
+private enum class Step { Ringing, Workout, Fallback, Success }
 
 /**
  * The real alarm flow inside [app.qiap.alarm.RingingActivity]: Ringing → Workout → Success.
@@ -38,6 +39,14 @@ fun RingingFlow(onClose: () -> Unit) {
     var step by rememberSaveable { mutableStateOf(Step.Ringing) }
     var reps by rememberSaveable { mutableIntStateOf(0) }
     var seconds by rememberSaveable { mutableIntStateOf(0) }
+    var fallbackReason by rememberSaveable { mutableStateOf("") }
+    var fromWorkout by rememberSaveable { mutableStateOf(false) }
+
+    // Load the pose model while it rings so "Start workout" opens the camera instantly.
+    DisposableEffect(Unit) {
+        container.prewarmPoseEngine()
+        onDispose { container.discardWarmPoseEngine() }
+    }
 
     // The service clears its state when the alarm ends; keep the request for the success screen.
     val holder = remember { arrayOfNulls<RingRequest>(1) }
@@ -66,18 +75,43 @@ fun RingingFlow(onClose: () -> Unit) {
                     step = Step.Workout
                 },
                 onFallback = {
-                    AlarmService.finish(context, Outcome.FALLBACK, reps = 0, seconds = 0)
+                    fallbackReason = "Can't do the workout today? That's okay. Prove you're awake another way."
+                    fromWorkout = false
+                    step = Step.Fallback
+                },
+                snoozesLeft = request.snoozesLeft,
+                onSnooze = {
+                    AlarmService.snooze(context)
                     onClose()
                 },
             )
         }
         Step.Workout -> QiapTheme(QiapThemeVariant.Night) {
-            WorkoutScreen(exercise = spec, target = request.target, onComplete = { r, s ->
-                reps = r
-                seconds = s
-                AlarmService.finish(context, Outcome.EARNED, r, s)
-                step = Step.Success
-            })
+            WorkoutScreen(
+                exercise = spec,
+                target = request.target,
+                onComplete = { r, s ->
+                    reps = r
+                    seconds = s
+                    AlarmService.finish(context, Outcome.EARNED, r, s)
+                    step = Step.Success
+                },
+                onGiveUp = { reason ->
+                    fallbackReason = reason
+                    fromWorkout = true
+                    step = Step.Fallback
+                },
+            )
+        }
+        Step.Fallback -> QiapTheme {
+            FallbackScreen(
+                reason = fallbackReason,
+                onSolved = {
+                    AlarmService.finish(context, Outcome.FALLBACK, reps = 0, seconds = 0)
+                    onClose()
+                },
+                onBackToWorkout = if (fromWorkout) ({ step = Step.Workout }) else ({ step = Step.Ringing }),
+            )
         }
         Step.Success -> QiapTheme {
             val entries by container.historyStore.entries.collectAsStateWithLifecycle()

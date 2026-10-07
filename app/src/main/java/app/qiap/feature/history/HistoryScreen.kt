@@ -63,7 +63,7 @@ fun HistoryScreen() {
 
         QiapCard(tone = CardTone.Ink) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(QiapSpacing.xxs)) {
                     QiapText("Current streak", style = type.label, color = colors.onInk.copy(alpha = 0.65f))
                     QiapText("${stats.streak}", style = type.displayCompact)
                     QiapText(
@@ -85,7 +85,7 @@ fun HistoryScreen() {
             }
             val max = (stats.repsByExercise.values.maxOrNull() ?: 1).coerceAtLeast(1)
             stats.repsByExercise.entries.sortedByDescending { it.value }.forEach { (id, n) ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(horizontalArrangement = Arrangement.spacedBy(QiapSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
                     Pictogram(pictogramFor(id), Modifier.size(28.dp), showFloor = false)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(QiapSpacing.xxs)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -116,13 +116,13 @@ private fun MonthCard(today: LocalDate, byDay: Map<Long, Outcome>) {
                 Legend(SealState.Fallback, "fallback")
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
             listOf("M", "T", "W", "T", "F", "S", "S").forEach {
                 QiapText(it, style = type.caption, color = colors.ink3, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
             }
         }
         cells.chunked(7).forEach { week ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
                 week.forEach { day ->
                     val outcome = day?.let { byDay[first.withDayOfMonth(it).toEpochDay()] }
                     DayCell(day, today.dayOfMonth, outcome, Modifier.weight(1f))

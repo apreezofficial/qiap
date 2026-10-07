@@ -19,6 +19,14 @@ class AlarmReceiver : BroadcastReceiver() {
         val container = (context.applicationContext as QiapApp).container
         val id = intent.getIntExtra(EXTRA_ALARM_ID, -1)
 
+        if (intent.getBooleanExtra(EXTRA_IS_SNOOZE, false)) {
+            // A snoozed alarm rings again with the settings it had when it was snoozed.
+            val again = RingRequest.fromIntent(intent) ?: return
+            container.alarmScheduler.snoozeFired()
+            AlarmService.ring(context, again)
+            return
+        }
+
         val request = if (id == AlarmScheduler.TEST_ID) {
             val at = Instant.ofEpochMilli(intent.getLongExtra(EXTRA_TEST_AT, System.currentTimeMillis())).atZone(ZoneId.systemDefault())
             RingRequest(
@@ -50,6 +58,7 @@ class AlarmReceiver : BroadcastReceiver() {
         const val EXTRA_TEST_EXERCISE = "testExercise"
         const val EXTRA_TEST_TARGET = "testTarget"
         const val EXTRA_TEST_AT = "testAt"
+        const val EXTRA_IS_SNOOZE = "isSnooze"
     }
 }
 

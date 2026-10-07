@@ -22,10 +22,12 @@ import app.qiap.R
 import app.qiap.core.common.twelveHour
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.Serializable
 import java.time.LocalDate
 import java.time.LocalTime
 
 /** Everything the ringing UI needs, independent of the store (also used for test alarms). */
+@Serializable
 data class RingRequest(
     val alarmId: Int,
     val hour: Int,
@@ -34,10 +36,15 @@ data class RingRequest(
     val exerciseId: String,
     val target: Int,
     val volume: Float,
+    val snoozeMax: Int = 0,
+    val snoozesUsed: Int = 0,
 ) {
+    val snoozesLeft: Int get() = if (alarmId == AlarmScheduler.TEST_ID) 0 else (snoozeMax - snoozesUsed).coerceAtLeast(0)
+
     fun toIntent(intent: Intent): Intent = intent
         .putExtra(K_ID, alarmId).putExtra(K_H, hour).putExtra(K_M, minute).putExtra(K_LABEL, label)
         .putExtra(K_EX, exerciseId).putExtra(K_TARGET, target).putExtra(K_VOL, volume)
+        .putExtra(K_SNOOZE_MAX, snoozeMax).putExtra(K_SNOOZE_USED, snoozesUsed)
 
     companion object {
         private const val K_ID = "ring.id"
@@ -47,12 +54,17 @@ data class RingRequest(
         private const val K_EX = "ring.ex"
         private const val K_TARGET = "ring.target"
         private const val K_VOL = "ring.vol"
+        private const val K_SNOOZE_MAX = "ring.snoozeMax"
+        private const val K_SNOOZE_USED = "ring.snoozeUsed"
 
-        fun from(a: Alarm) = RingRequest(a.id, a.hour, a.minute, a.label.ifBlank { a.daysLabel() }, a.exerciseId, a.target, a.volume)
+        fun from(a: Alarm) = RingRequest(
+            a.id, a.hour, a.minute, a.label.ifBlank { a.daysLabel() }, a.exerciseId, a.target, a.volume, a.snoozeMax,
+        )
 
         fun fromIntent(i: Intent): RingRequest? = if (!i.hasExtra(K_ID)) null else RingRequest(
             i.getIntExtra(K_ID, -1), i.getIntExtra(K_H, 0), i.getIntExtra(K_M, 0), i.getStringExtra(K_LABEL) ?: "",
             i.getStringExtra(K_EX) ?: "squat", i.getIntExtra(K_TARGET, 12), i.getFloatExtra(K_VOL, 0.8f),
+            i.getIntExtra(K_SNOOZE_MAX, 0), i.getIntExtra(K_SNOOZE_USED, 0),
         )
     }
 }
@@ -71,6 +83,7 @@ data class RingState(val request: RingRequest, val startedAtMs: Long, val workou
  */
 class AlarmService : Service() {
 
+    private val container get() = (application as QiapApp).container
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var ringer: AlarmRinger
     private var wakeLock: PowerManager.WakeLock? = null
@@ -85,6 +98,15 @@ class AlarmService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // The process died mid-ring and the system restarted us with an intent that can't say
+        // what was ringing (a null or WORKOUT intent). The ring was saved to disk: pick it back up.
+        if (_state.value == null && intent?.action != ACTION_RING) {
+            val saved = container.ringStore.get()
+            if (saved != null) {
+                goForeground(saved.request)
+                startRing(saved.request, saved.startedAtMs)
+            }
+        }
         when (intent?.action) {
             ACTION_RING -> {
                 val request = RingRequest.fromIntent(intent)
@@ -104,26 +126,34 @@ class AlarmService : Service() {
                 intent.getIntExtra(EXTRA_REPS, 0),
                 intent.getIntExtra(EXTRA_SECONDS, 0),
             )
+            ACTION_SNOOZE -> snooze()
             else -> if (_state.value == null) stopSelf()
         }
-        // If the process dies mid-ring, redeliver the RING intent so it rings again.
+        // If the process dies mid-ring, the system restarts us and the saved ring is resumed above.
         return START_REDELIVER_INTENT
     }
 
-    private fun startRing(request: RingRequest) {
-        _state.value = RingState(request, System.currentTimeMillis(), workoutStarted = false)
+    private fun startRing(request: RingRequest, startedAtMs: Long = System.currentTimeMillis()) {
+        val left = startedAtMs + MAX_RING_MS - System.currentTimeMillis()
+        _state.value = RingState(request, startedAtMs, workoutStarted = false)
+        container.ringStore.set(PersistedRing(request, startedAtMs))
+        if (left <= 0) {
+            // It already rang out its full cap before the process was killed.
+            finishRing(Outcome.MISSED, reps = 0, seconds = (MAX_RING_MS / 1000).toInt())
+            return
+        }
         wakeLock = getSystemService(PowerManager::class.java)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "qiap:ringing")
-            .apply { acquire(MAX_RING_MS + 60_000) }
+            .apply { acquire(left + 60_000) }
         ringer.start(request.volume)
-        handler.postDelayed(timeout, MAX_RING_MS)
+        handler.postDelayed(timeout, left)
         // Also try to open the ringing screen directly; the full-screen intent covers locked phones.
         runCatching { startActivity(RingingActivity.intent(this).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
 
     private fun goForeground(request: RingRequest) {
         val type = if (Build.VERSION.SDK_INT >= 34) {
-            val exactOk = (application as QiapApp).container.alarmScheduler.canScheduleExact()
+            val exactOk = container.alarmScheduler.canScheduleExact()
             if (exactOk) ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED else ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
         } else {
             0
@@ -131,11 +161,23 @@ class AlarmService : Service() {
         ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(this, request), type)
     }
 
+    /** Silence this ring for [Alarm.SNOOZE_MS]; it rings again with the same settings, one snooze fewer. */
+    private fun snooze() {
+        val s = _state.value ?: return
+        if (s.request.snoozesLeft <= 0) return
+        container.alarmScheduler.scheduleSnooze(
+            s.request.copy(snoozesUsed = s.request.snoozesUsed + 1),
+            System.currentTimeMillis() + Alarm.SNOOZE_MS,
+        )
+        Log.i(TAG, "snoozed alarm ${s.request.alarmId}, ${s.request.snoozesLeft - 1} left")
+        teardown()
+    }
+
     private fun finishRing(outcome: Outcome, reps: Int, seconds: Int) {
         val s = _state.value
         if (s != null && s.request.alarmId != AlarmScheduler.TEST_ID) {
             val now = LocalTime.now()
-            (application as QiapApp).container.historyStore.record(
+            container.historyStore.record(
                 HistoryEntry(
                     alarmId = s.request.alarmId,
                     epochDay = LocalDate.now().toEpochDay(),
@@ -150,6 +192,11 @@ class AlarmService : Service() {
             )
         }
         Log.i(TAG, "ring ended: $outcome, $reps reps")
+        teardown()
+    }
+
+    private fun teardown() {
+        container.ringStore.clear()
         handler.removeCallbacks(timeout)
         ringer.stop()
         wakeLock?.takeIf { it.isHeld }?.release()
@@ -175,6 +222,7 @@ class AlarmService : Service() {
         private const val ACTION_RING = "app.qiap.action.RING"
         private const val ACTION_WORKOUT = "app.qiap.action.WORKOUT_STARTED"
         private const val ACTION_FINISH = "app.qiap.action.FINISH"
+        private const val ACTION_SNOOZE = "app.qiap.action.SNOOZE"
         private const val EXTRA_OUTCOME = "outcome"
         private const val EXTRA_REPS = "reps"
         private const val EXTRA_SECONDS = "seconds"
@@ -192,6 +240,10 @@ class AlarmService : Service() {
         /** Called from the ringing UI (app in foreground, so a plain startService is allowed). */
         fun workoutStarted(context: Context) {
             context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_WORKOUT))
+        }
+
+        fun snooze(context: Context) {
+            context.startService(Intent(context, AlarmService::class.java).setAction(ACTION_SNOOZE))
         }
 
         fun finish(context: Context, outcome: Outcome, reps: Int, seconds: Int) {

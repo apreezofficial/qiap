@@ -37,7 +37,7 @@ fun SuccessScreen(reps: Int, seconds: Int, streak: Int, best: Int, onDone: () ->
         bottomBar = { PillButton("Alarm off", onClick = onDone, modifier = Modifier.fillMaxWidth()) },
     ) {
         SealStamp(
-            Modifier.align(Alignment.CenterHorizontally).padding(top = 28.dp),
+            Modifier.align(Alignment.CenterHorizontally).padding(top = QiapSpacing.lg),
             size = 168.dp,
             stampIn = true,
             shockwave = true,
@@ -78,7 +78,7 @@ fun SuccessScreen(reps: Int, seconds: Int, streak: Int, best: Int, onDone: () ->
 
 @Composable
 private fun Stat(label: String, value: String, modifier: Modifier) {
-    QiapCard(modifier, size = CardSize.Small, tone = CardTone.Muted, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    QiapCard(modifier, size = CardSize.Small, tone = CardTone.Muted, verticalArrangement = Arrangement.spacedBy(QiapSpacing.xxs)) {
         QiapText(label, style = QiapTheme.type.caption, color = QiapTheme.colors.ink3)
         QiapText(value, style = QiapTheme.type.displayCompact.copy(fontSize = 22.sp, lineHeight = 26.sp))
     }

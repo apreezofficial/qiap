@@ -69,13 +69,15 @@ fun RingingScreen(
     target: Int,
     onStartWorkout: () -> Unit,
     onFallback: () -> Unit,
+    snoozesLeft: Int = 0,
+    onSnooze: (() -> Unit)? = null,
 ) {
     val colors = QiapTheme.colors
     val (time, _) = twelveHour(hour, minute)
     val date = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()))
 
     QiapScreen(
-        bottomClearance = 150.dp,
+        bottomClearance = if (snoozesLeft > 0 && onSnooze != null) 208.dp else 150.dp,
         bottomBar = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(QiapSpacing.sm)) {
                 PillButton(
@@ -85,6 +87,14 @@ fun RingingScreen(
                     leadingIcon = QiapIcons.Play,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (snoozesLeft > 0 && onSnooze != null) {
+                    PillButton(
+                        "Snooze 5 min · $snoozesLeft left",
+                        onClick = onSnooze,
+                        style = PillButtonStyle.Secondary,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 HoldToSkip(onFallback)
             }
         },

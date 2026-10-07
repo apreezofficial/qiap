@@ -21,6 +21,7 @@ class AlarmScheduler(
     private val context: Context,
     private val store: AlarmStore,
     private val clock: Clock,
+    private val snoozeStore: JsonValueStore<PendingSnooze>? = null,
 ) {
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
@@ -43,9 +44,26 @@ class AlarmScheduler(
         alarmManager.cancel(fireIntent(id, test = null))
     }
 
-    /** Reschedules every enabled alarm. Called after boot, updates, and clock/timezone changes. */
+    /** Reschedules every enabled alarm, and any snooze still waiting. Called after boot, updates, and clock/timezone changes. */
     fun syncAll() {
         for (a in store.alarms.value) sync(a)
+        snoozeStore?.get()?.let { pending ->
+            // A snooze that came due while the phone was off rings a few seconds after boot.
+            val at = maxOf(pending.atMs, clock.millis() + 5_000)
+            setAt(at, snoozeIntent(pending.request))
+        }
+    }
+
+    /** Rings [request] again at [atMs]. Persisted, so a reboot during the snooze keeps it. */
+    fun scheduleSnooze(request: RingRequest, atMs: Long) {
+        snoozeStore?.set(PendingSnooze(request, atMs))
+        setAt(atMs, snoozeIntent(request))
+        Log.i(TAG, "snooze scheduled for alarm ${request.alarmId} at $atMs")
+    }
+
+    /** Called once the snoozed ring has actually started. */
+    fun snoozeFired() {
+        snoozeStore?.clear()
     }
 
     /** "Test alarm in 10 s": a one-off ring that isn't stored and doesn't touch real alarms. */
@@ -75,6 +93,16 @@ class AlarmScheduler(
 
     private class TestSpec(val exerciseId: String, val target: Int, val atMs: Long)
 
+    private fun snoozeIntent(request: RingRequest): PendingIntent {
+        val intent = request.toIntent(
+            Intent(context, AlarmReceiver::class.java)
+                .setAction(AlarmReceiver.ACTION_FIRE)
+                .putExtra(AlarmReceiver.EXTRA_ALARM_ID, SNOOZE_ID)
+                .putExtra(AlarmReceiver.EXTRA_IS_SNOOZE, true),
+        )
+        return PendingIntent.getBroadcast(context, SNOOZE_ID, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+    }
+
     private fun fireIntent(id: Int, test: TestSpec?): PendingIntent {
         val intent = Intent(context, AlarmReceiver::class.java)
             .setAction(AlarmReceiver.ACTION_FIRE)
@@ -93,5 +121,6 @@ class AlarmScheduler(
     companion object {
         private const val TAG = "QiapAlarm"
         const val TEST_ID = Int.MAX_VALUE
+        const val SNOOZE_ID = Int.MAX_VALUE - 1
     }
 }

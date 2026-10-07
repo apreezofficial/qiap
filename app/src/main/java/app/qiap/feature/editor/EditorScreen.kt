@@ -67,9 +67,10 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
     var exerciseId by rememberSaveable { mutableStateOf(start.exerciseId) }
     var target by rememberSaveable { mutableIntStateOf(start.target) }
     var volume by rememberSaveable { mutableFloatStateOf(start.volume) }
+    var snoozeMax by rememberSaveable { mutableIntStateOf(start.snoozeMax) }
     val spec = ExerciseCatalog.byId(exerciseId) ?: ExerciseCatalog.Squat
 
-    val draft = start.copy(hour = hour, minute = minute, days = days, exerciseId = spec.id, target = target, volume = volume, enabled = true)
+    val draft = start.copy(hour = hour, minute = minute, days = days, exerciseId = spec.id, target = target, volume = volume, snoozeMax = snoozeMax, enabled = true)
     val now = ZonedDateTime.now()
     val inMinutes = ((Duration.between(now, nextTrigger(draft, now)).seconds + 59) / 60).toInt()
 
@@ -140,6 +141,18 @@ fun EditorScreen(alarmId: Int?, onDone: () -> Unit, onSeeAllExercises: () -> Uni
                 subtitle = "Your phone's alarm sound",
                 leading = { IconTile(QiapIcons.Music, null, size = 40.dp, background = colors.bgWash) },
             )
+            HairlineDivider()
+            Column(Modifier.padding(vertical = QiapSpacing.xs), verticalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    QiapText("Snooze", style = QiapTheme.type.title)
+                    QiapText(if (snoozeMax == 0) "Off: reps are the only way out" else "5 min each time", style = QiapTheme.type.caption, color = colors.ink3)
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xxs)) {
+                    for (n in 0..Alarm.MAX_SNOOZES) {
+                        Chip(if (n == 0) "Off" else "${n}×", selected = snoozeMax == n, onClick = { snoozeMax = n }, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
             HairlineDivider()
             Column(Modifier.padding(top = QiapSpacing.xs)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

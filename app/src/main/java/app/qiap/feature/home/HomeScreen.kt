@@ -189,7 +189,7 @@ private fun InsightCard(tone: CardTone = CardTone.Surface, content: @Composable 
         Modifier.width(148.dp),
         size = CardSize.Small,
         tone = tone,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(QiapSpacing.sm),
     ) { content() }
 }
 
@@ -198,7 +198,7 @@ private fun BigStat(value: String, unit: String?) {
     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xxs)) {
         QiapText(value, style = QiapTheme.type.displayCompact.copy(fontSize = 34.sp, lineHeight = 36.sp))
         if (unit != null) {
-            QiapText(unit, style = QiapTheme.type.label, color = QiapTheme.colors.ink2, modifier = Modifier.padding(bottom = 6.dp))
+            QiapText(unit, style = QiapTheme.type.label, color = QiapTheme.colors.ink2, modifier = Modifier.padding(bottom = QiapSpacing.xs))
         }
     }
 }
@@ -249,7 +249,7 @@ private fun AlarmCard(alarm: Alarm, countdown: String?, phase: Float, onClick: (
 private fun ReliabilityCard(checks: Map<Check, Boolean>, onFix: () -> Unit) {
     val colors = QiapTheme.colors
     val required = checks.filterKeys { it.required && it != Check.CAMERA }
-    QiapCard(size = CardSize.Small, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    QiapCard(size = CardSize.Small, verticalArrangement = Arrangement.spacedBy(QiapSpacing.sm)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             QiapText("Will it ring?", style = QiapTheme.type.title)
             val ok = required.count { it.value }

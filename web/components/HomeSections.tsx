@@ -118,9 +118,9 @@ export function Rows() {
         id="check"
         title="Hard to fake at six a.m."
         visual={
-          <div className="panel sky-wash relative flex h-[460px] flex-col items-center justify-end overflow-hidden text-ink sm:h-[560px]">
+          <div className="panel sky-wash relative flex h-[540px] flex-col items-center justify-end overflow-hidden text-ink sm:h-[560px]">
             <p className="h-display absolute left-8 right-8 top-8 text-[40px] sm:text-[52px]">Raise your right hand.</p>
-            <Skeleton pose="arms-up" bone="#111114" className="h-[360px] w-auto sm:h-[440px]" />
+            <Skeleton pose="arms-up" bone="#111114" className="h-[300px] w-auto sm:h-[400px]" />
           </div>
         }
       >
@@ -141,9 +141,9 @@ export function Rows() {
         visual={
           <div className="panel relative flex h-[460px] items-center justify-center overflow-hidden bg-panel-2 sm:h-[560px]">
             <div className="absolute left-6 top-6 sm:left-12">
-              <Seal size={190} animate />
+              <Seal size={170} animate />
             </div>
-            <div className="absolute -bottom-24 right-6 sm:right-14">
+            <div className="absolute left-1/2 top-[230px] -translate-x-1/2 sm:left-auto sm:right-14 sm:top-auto sm:-bottom-24 sm:translate-x-0">
               <PhoneFrame scale={0.95}>
                 <HistoryScreen />
               </PhoneFrame>

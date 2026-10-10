@@ -16,9 +16,18 @@ android {
         versionCode = 1
         versionName = "0.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // MediaPipe ships ~10 MB of native code per ABI. Real phones are ARM; x86_64 is added
+        // for debug only so the emulator works. Keeps the release APK inside the 40 MB budget.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
+    // MediaPipe memory-maps the model; a compressed asset would have to be copied first.
+    androidResources { noCompress += "task" }
+
     buildTypes {
+        debug {
+            ndk { abiFilters += "x86_64" }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -60,6 +69,15 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    // CameraX: camera preview + per-frame analysis with lifecycle binding (CLAUDE.md stack).
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    // Compose viewfinder for the preview, so the workout screen stays pure Compose.
+    implementation(libs.androidx.camera.compose)
+    // On-device pose landmarks (CLAUDE.md stack), behind the PoseEngine interface.
+    implementation(libs.mediapipe.tasks.vision)
 
     baselineProfile(project(":baselineprofile"))
 

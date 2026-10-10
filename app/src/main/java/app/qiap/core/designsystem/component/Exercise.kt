@@ -76,6 +76,7 @@ fun ExerciseTile(
     style: ExerciseTileStyle = ExerciseTileStyle.Sky,
     big: Boolean = false,
     phase: Float = 0f,
+    animate: Boolean = true,
 ) {
     val colors = QiapTheme.colors
     val dark = style == ExerciseTileStyle.Dark
@@ -128,6 +129,7 @@ fun ExerciseTile(
                 motion,
                 Modifier.align(Alignment.BottomEnd).size(if (big) 150.dp else 104.dp),
                 phase = phase,
+                animate = animate,
             )
             FavoriteButton(favorite, onFavorite, dark, Modifier.align(Alignment.TopEnd).padding(start = 0.dp))
         }
@@ -159,6 +161,7 @@ fun ExercisePickerItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     phase: Float = 0f,
+    animate: Boolean = true,
 ) {
     val colors = QiapTheme.colors
     val shape = RoundedCornerShape(20.dp)
@@ -174,7 +177,7 @@ fun ExercisePickerItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.Bottom),
     ) {
-        Pictogram(motion, Modifier.size(58.dp), phase = phase)
+        Pictogram(motion, Modifier.size(58.dp), phase = phase, animate = animate)
         QiapText(name, style = QiapTheme.type.caption.copy(lineHeight = 14.sp), textAlign = TextAlign.Center, maxLines = 2)
     }
 }

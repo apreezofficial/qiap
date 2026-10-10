@@ -36,9 +36,11 @@ fun Pictogram(
     showJoints: Boolean = false,
     offForm: Boolean = false,
     phase: Float = 0f,
+    /** False draws a still frame (long lists animate only the few tiles in view). */
+    animate: Boolean = true,
 ) {
     val colors = QiapTheme.colors
-    val progress: State<Float>? = if (rememberReducedMotion()) {
+    val progress: State<Float>? = if (!animate || rememberReducedMotion()) {
         null
     } else {
         rememberInfiniteTransition(label = "pictogram").animateFloat(

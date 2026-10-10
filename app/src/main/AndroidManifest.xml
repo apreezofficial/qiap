@@ -15,6 +15,21 @@
     <!-- Not required so the app (and its alarm) still installs on devices without one. -->
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
 
+    <!-- Alarm engine. Qiap is an alarm clock, the use case these exist for. -->
+    <!-- API 33+: auto-granted, not user-revocable (Play policy: alarm clock apps). -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- API 31-32 only, where USE_EXACT_ALARM doesn't exist yet. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- API 34+: limited to calling and alarm apps; checked at runtime in Setup. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
         android:name=".QiapApp"
         android:allowBackup="false"
@@ -32,5 +47,59 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Lock-screen ringing UI. Own task so dismissing never reveals Home on a locked phone.
+             directBootAware: an alarm can ring after a reboot before the first unlock. -->
+        <activity
+            android:name=".alarm.RingingActivity"
+            android:directBootAware="true"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:taskAffinity="app.qiap.ringing"
+            android:turnScreenOn="true" />
+
+        <!-- systemExempted: allowed because we hold USE_EXACT_ALARM; no boot or duration limits.
+             specialUse: fallback type if exact alarms were revoked (API 31-32). -->
+        <service
+            android:name=".alarm.AlarmService"
+            android:directBootAware="true"
+            android:exported="false"
+            android:foregroundServiceType="systemExempted|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Alarm clock: plays the alarm sound until the user dismisses it by completing a workout." />
+        </service>
+
+        <!-- Lets the user share a video proof from History. Only files/proofs is exposed. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.proofs"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <receiver
+            android:name=".alarm.AlarmReceiver"
+            android:directBootAware="true"
+            android:exported="false" />
+
+        <receiver
+            android:name=".alarm.SystemEventReceiver"
+            android:directBootAware="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

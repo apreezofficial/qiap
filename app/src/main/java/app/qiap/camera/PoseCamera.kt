@@ -2,6 +2,7 @@ package app.qiap.camera
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.util.Log
 import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -29,7 +30,12 @@ import java.util.concurrent.Executors
  * Analysis runs at ~640×480 RGBA, keep-only-latest. Frames are dropped (not queued) while the
  * engine is busy, and pixels are copied into one reused [Bitmap], so steady state allocates nothing.
  */
-class PoseCamera(private val context: Context, private val engine: PoseEngine) {
+class PoseCamera(
+    private val context: Context,
+    private val engine: PoseEngine,
+    /** Optional video proof; recorded only if this phone can run it alongside preview + analysis. */
+    private val proof: ProofRecorder? = null,
+) {
     private val _surfaceRequest = MutableStateFlow<SurfaceRequest?>(null)
     private val _mirrored = MutableStateFlow(true)
 
@@ -73,12 +79,27 @@ class PoseCamera(private val context: Context, private val engine: PoseEngine) {
             .also { it.setAnalyzer(executor, ::analyze) }
 
         provider.unbindAll()
-        provider.bindToLifecycle(owner, selector, preview, analysis)
+        var recording = false
+        if (proof != null) {
+            // Preview + analysis + video is three streams: not every phone allows it (details.md §10).
+            // If binding fails, fall back to counting without video; the alarm never depends on it.
+            try {
+                provider.bindToLifecycle(owner, selector, preview, analysis, proof.videoCapture)
+                recording = true
+            } catch (e: Exception) {
+                Log.w("QiapProof", "video + analysis not supported here, continuing without video", e)
+                provider.unbindAll()
+                proof.markUnavailable()
+            }
+        }
+        if (!recording) provider.bindToLifecycle(owner, selector, preview, analysis)
+        if (recording) proof?.start()
         try {
             awaitCancellation()
         } finally {
+            proof?.stop()
             analysis.clearAnalyzer()
-            provider.unbind(preview, analysis)
+            provider.unbindAll()
             executor.shutdown()
             _surfaceRequest.value = null
         }

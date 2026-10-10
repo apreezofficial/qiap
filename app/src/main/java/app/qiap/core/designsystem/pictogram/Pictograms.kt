@@ -79,8 +79,14 @@ object Pictograms {
         pose(40, 15, 44, 26, 50, 53, 30, 18, 22, 8, 38, 14, 30, 4, 48, 72, 46, 90, 52, 72, 54, 90),
     )
 
+    val SitUp = PictogramMotion(
+        "Sit-up", 2400,
+        pose(14, 80, 24, 80, 52, 82, 34, 88, 46, 90, 34, 88, 46, 90, 68, 64, 78, 88, 68, 64, 78, 88),
+        pose(38, 46, 42, 56, 52, 82, 52, 66, 66, 60, 52, 66, 66, 60, 68, 64, 78, 88, 68, 64, 78, 88),
+    )
+
     val all: List<PictogramMotion> = listOf(
-        Squat, PushUp, Lunge, JumpingJack, Plank, GluteBridge, HighKnees, MountainClimber, SideReach,
+        Squat, PushUp, Lunge, JumpingJack, Plank, GluteBridge, HighKnees, MountainClimber, SideReach, SitUp,
     )
 
     private fun pose(vararg xy: Int): FloatArray {

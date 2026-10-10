@@ -24,7 +24,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,7 +50,9 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -56,6 +63,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.qiap.BuildConfig
 import app.qiap.QiapApp
 import app.qiap.camera.PoseCamera
+import app.qiap.camera.ProofRecorder
+import app.qiap.camera.ProofState
 import app.qiap.core.designsystem.component.CardSize
 import app.qiap.core.designsystem.component.Chip
 import app.qiap.core.designsystem.component.ChipTone
@@ -73,17 +82,19 @@ import app.qiap.core.designsystem.theme.QiapRadius
 import app.qiap.core.designsystem.theme.QiapSpacing
 import app.qiap.core.designsystem.theme.QiapTheme
 import app.qiap.exercise.ExerciseCatalog
+import app.qiap.exercise.ExerciseSpec
+import app.qiap.feature.pictogramFor
 import app.qiap.pose.PoseEngine
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-
-private const val TARGET = 12
 
 /**
  * Workout (design.md §7), Night theme. With camera permission: live CameraX preview, MediaPipe
@@ -91,7 +102,21 @@ private const val TARGET = 12
  * demo stand-in, so the flow is never a dead end. Nothing over the camera is glass or blurred.
  */
 @Composable
-fun WorkoutScreen(onComplete: () -> Unit) {
+fun WorkoutScreen(
+    onComplete: (reps: Int, seconds: Int) -> Unit,
+    exercise: ExerciseSpec = ExerciseCatalog.Squat,
+    target: Int = 12,
+    /**
+     * Set for a real ringing alarm: the way out when the workout can't happen (no camera, no pose
+     * model, 10 minutes of trying, or "I can't do this"). The reason is shown on the fallback screen.
+     * Null in previews, where a demo stand-in keeps the flow alive instead.
+     */
+    onGiveUp: ((reason: String) -> Unit)? = null,
+    /** Record a private video of the workout (real alarms with video proof on). */
+    recordProof: Boolean = false,
+    /** Called with the video file path as soon as recording starts. */
+    onProofFile: (String) -> Unit = {},
+) {
     val context = LocalContext.current
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
@@ -103,10 +128,17 @@ fun WorkoutScreen(onComplete: () -> Unit) {
     }
     LaunchedEffect(Unit) { if (!granted && !asked) launcher.launch(Manifest.permission.CAMERA) }
 
+    val giveUp by rememberUpdatedState(onGiveUp)
     if (granted) {
-        LiveWorkout(onComplete)
+        LiveWorkout(exercise, target, onComplete, onGiveUp, recordProof, onProofFile)
+    } else if (onGiveUp != null) {
+        // A real alarm never falls back to the demo (its "+1 rep" would be a free pass).
+        LaunchedEffect(asked) { if (asked) giveUp?.invoke("The camera is off, so I can't count reps.") }
+        CameraStage { QiapText("Waiting for camera access…", style = QiapTheme.type.caption, color = QiapTheme.colors.ink3, modifier = Modifier.align(Alignment.Center)) }
     } else {
         DemoWorkout(
+            exercise = exercise,
+            target = target,
             onComplete = onComplete,
             notice = if (asked) "Camera is off, so this is a demo." else null,
             onAllowCamera = {
@@ -130,12 +162,45 @@ private sealed interface EngineState {
 }
 
 @Composable
-private fun LiveWorkout(onComplete: () -> Unit) {
+private fun LiveWorkout(
+    exercise: ExerciseSpec,
+    target: Int,
+    onComplete: (Int, Int) -> Unit,
+    onGiveUp: ((String) -> Unit)?,
+    recordProof: Boolean,
+    onProofFile: (String) -> Unit,
+) {
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val container = remember { (context.applicationContext as QiapApp).container }
-    val session = remember { PoseSession(ExerciseCatalog.Squat) }
+    // A real alarm (onGiveUp set) also runs the anti-cheat checks; practice from the library does not.
+    val realAlarm = onGiveUp != null
+    val session = remember(exercise, target) { PoseSession(exercise, target, antiCheat = realAlarm) }
+
+    // Phone-shake check: reps are ignored while the phone is waved about instead of propped up.
+    if (realAlarm) {
+        DisposableEffect(session) {
+            val sensors = context.getSystemService(SensorManager::class.java)
+            val accel = sensors?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+            val listener = object : SensorEventListener {
+                override fun onSensorChanged(e: SensorEvent) {
+                    session.shake.onSample(e.values[0], e.values[1], e.values[2], e.timestamp / 1_000_000)
+                }
+
+                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+            }
+            if (accel != null) sensors?.registerListener(listener, accel, SensorManager.SENSOR_DELAY_GAME)
+            onDispose { sensors?.unregisterListener(listener) }
+        }
+    }
+    var seconds by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { delay(1000); seconds++ } }
     val done by rememberUpdatedState(onComplete)
+    val giveUp by rememberUpdatedState(onGiveUp)
+    // Camera sessions are capped (details.md §3): after this long, offer the way out.
+    LaunchedEffect(seconds >= WORKOUT_CAP_SECONDS) {
+        if (seconds >= WORKOUT_CAP_SECONDS) giveUp?.invoke("That's 10 minutes of trying. No shame in it.")
+    }
 
     // Model load + GPU init take a few hundred ms: off the main thread, closed on leave.
     val state by produceState<EngineState>(EngineState.Loading) {
@@ -155,23 +220,55 @@ private fun LiveWorkout(onComplete: () -> Unit) {
         }
     }
 
+    // Haptic tick per rep and a firmer buzz every fifth (details.md §7). Holds buzz every 5 s only.
+    val haptics = LocalHapticFeedback.current
+    var lastBuzzedReps by remember { mutableIntStateOf(0) }
     LaunchedEffect(session.reps) {
-        if (session.reps >= TARGET) {
+        val r = session.reps
+        if (r > lastBuzzedReps && (!exercise.isHold || r % 5 == 0)) {
+            haptics.performHapticFeedback(if (r % 5 == 0) HapticFeedbackType.LongPress else HapticFeedbackType.TextHandleMove)
+        }
+        lastBuzzedReps = r
+    }
+
+    // Done = reps reached and (real alarms) the final stand-still + gesture passed.
+    LaunchedEffect(session.phase) {
+        if (session.phase == WorkoutPhase.DONE) {
             delay(500)
-            done()
+            done(session.reps, seconds)
         }
     }
 
     when (val s = state) {
-        is EngineState.Failed -> DemoWorkout(onComplete, notice = "Rep counting couldn't start: ${s.reason}", onAllowCamera = null)
+        is EngineState.Failed -> if (onGiveUp != null) {
+            LaunchedEffect(Unit) { giveUp?.invoke("Rep counting couldn't start on this phone.") }
+            CameraStage {}
+        } else {
+            DemoWorkout(exercise, target, onComplete, notice = "Rep counting couldn't start: ${s.reason}", onAllowCamera = null)
+        }
         EngineState.Loading -> CameraStage { QiapText("Waking up the camera…", style = QiapTheme.type.caption, color = QiapTheme.colors.ink3, modifier = Modifier.align(Alignment.Center)) }
         is EngineState.Ready -> {
-            val camera = remember(s.engine) { PoseCamera(context, s.engine) }
-            LaunchedEffect(camera, owner) { camera.run(owner) }
+            // Video proof is best effort: PoseCamera only records if this phone can run it alongside the analysis.
+            val proof = remember(recordProof) { if (recordProof) ProofRecorder(context) else null }
+            val proofFlow = remember(proof) { proof?.state ?: MutableStateFlow(ProofState.OFF) }
+            val proofState by proofFlow.collectAsStateWithLifecycle()
+            val proofFileCallback by rememberUpdatedState(onProofFile)
+            LaunchedEffect(proofState) {
+                if (proofState == ProofState.RECORDING) proof?.file?.path?.let { proofFileCallback(it) }
+            }
+            val camera = remember(s.engine, proof) { PoseCamera(context, s.engine, proof) }
+            LaunchedEffect(camera, owner) {
+                try {
+                    camera.run(owner)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Camera in use, disabled by policy, or no such camera: never crash a ringing alarm.
+                    giveUp?.invoke("The camera wouldn't open.")
+                }
+            }
             val request by camera.surfaceRequest.collectAsStateWithLifecycle()
             val mirrored by camera.mirrored.collectAsStateWithLifecycle()
-            var seconds by rememberSaveable { mutableIntStateOf(0) }
-            LaunchedEffect(Unit) { while (true) { delay(1000); seconds++ } }
 
             CameraStage {
                 request?.let {
@@ -179,18 +276,23 @@ private fun LiveWorkout(onComplete: () -> Unit) {
                 }
                 SkeletonOverlay(session, mirrored, Modifier.fillMaxSize())
                 WorkoutHud(
+                    exercise = exercise,
+                    target = target,
                     reps = session.reps,
                     seconds = seconds,
                     cue = session.cue,
                     offForm = session.offForm,
+                    recording = proofState == ProofState.RECORDING,
                     stats = if (BuildConfig.DEBUG) "${session.fps} fps · ${session.inferenceMs} ms · ${s.engine.delegateName}" else null,
                     footer = { if (BuildConfig.DEBUG) FixtureRecorder(session) else QiapText(PRIVACY, style = QiapTheme.type.caption, color = QiapTheme.colors.ink3) },
+                    onGiveUp = onGiveUp?.let { g -> { g("Injured, too dark, or just not today? Do this instead.") } },
                 )
             }
         }
     }
 }
 
+private const val WORKOUT_CAP_SECONDS = 600
 private const val PRIVACY = "Counting on-device. Nothing leaves your phone."
 
 /** Debug only: record a landmark fixture for threshold tuning (adb pull …/files/fixtures). */
@@ -222,25 +324,31 @@ private fun RowScope.FixtureRecorder(session: PoseSession) {
 
 /** Stand-in when there's no camera: a looping skeleton that counts one rep per cycle. */
 @Composable
-private fun DemoWorkout(onComplete: () -> Unit, notice: String?, onAllowCamera: (() -> Unit)?) {
+private fun DemoWorkout(
+    exercise: ExerciseSpec,
+    target: Int,
+    onComplete: (Int, Int) -> Unit,
+    notice: String?,
+    onAllowCamera: (() -> Unit)?,
+) {
     val colors = QiapTheme.colors
     var reps by rememberSaveable { mutableIntStateOf(0) }
     var seconds by rememberSaveable { mutableIntStateOf(0) }
     val done by rememberUpdatedState(onComplete)
     LaunchedEffect(Unit) {
-        while (reps < TARGET) {
-            delay(Pictograms.Squat.periodMs.toLong())
-            if (reps < TARGET) reps++
+        while (reps < target) {
+            delay(pictogramFor(exercise.id).periodMs.toLong())
+            if (reps < target) reps++
         }
         delay(500)
-        done()
+        done(reps, seconds)
     }
     LaunchedEffect(Unit) { while (true) { delay(1000); seconds++ } }
     val offForm = reps % 4 == 2
 
     CameraStage(standIn = true) {
         Pictogram(
-            Pictograms.Squat,
+            pictogramFor(exercise.id),
             Modifier.align(Alignment.TopCenter).padding(top = 120.dp).size(300.dp),
             color = colors.ink,
             showFloor = false,
@@ -257,14 +365,16 @@ private fun DemoWorkout(onComplete: () -> Unit, notice: String?, onAllowCamera: 
             }
         }
         WorkoutHud(
+            exercise = exercise,
+            target = target,
             reps = reps,
             seconds = seconds,
-            cue = if (offForm) "Go a little lower" else null,
+            cue = if (offForm) exercise.depthCue else null,
             offForm = offForm,
             stats = "Demo",
             footer = {
                 QiapText(PRIVACY, style = QiapTheme.type.caption, color = colors.ink3, modifier = Modifier.weight(1f))
-                Chip("+1 rep", onClick = { if (reps < TARGET) reps++ })
+                Chip("+1 rep", onClick = { if (reps < target) reps++ })
             },
         )
     }
@@ -282,12 +392,16 @@ private fun CameraStage(standIn: Boolean = false, content: @Composable BoxScope.
 /** Top: proof timer + exercise chip (+ debug stats). Bottom: cue, giant rep count, progress, footer. All opaque. */
 @Composable
 private fun BoxScope.WorkoutHud(
+    exercise: ExerciseSpec,
+    target: Int,
     reps: Int,
     seconds: Int,
     cue: String?,
     offForm: Boolean,
     stats: String?,
     footer: @Composable RowScope.() -> Unit,
+    onGiveUp: (() -> Unit)? = null,
+    recording: Boolean = false,
 ) {
     val colors = QiapTheme.colors
     val type = QiapTheme.type
@@ -310,13 +424,19 @@ private fun BoxScope.WorkoutHud(
                 horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                RecordingDot()
+                // Only claim to be recording when a video really is being written.
+                if (recording) RecordingDot()
                 QiapText(
-                    "Proof · ${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}",
+                    (if (recording) "Proof · " else "") + "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}",
                     style = type.numeric.copy(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold),
                 )
             }
-            Chip("Squat", leading = { Pictogram(Pictograms.Squat, Modifier.size(18.dp), showFloor = false) })
+            Chip(exercise.name, leading = { Pictogram(pictogramFor(exercise.id), Modifier.size(18.dp), showFloor = false) })
+        }
+        if (onGiveUp != null) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Chip("I can't do this", onClick = onGiveUp)
+            }
         }
         if (stats != null) {
             QiapText(
@@ -330,10 +450,10 @@ private fun BoxScope.WorkoutHud(
 
     Column(
         Modifier.align(Alignment.BottomStart).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing).padding(QiapSpacing.md),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(QiapSpacing.sm),
     ) {
         FormFeedbackPill(cue ?: "Good depth", if (cue != null || offForm) FormState.Off else FormState.Good)
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs)) {
             QiapText(
                 "$reps",
                 style = type.display.copy(fontSize = 128.sp, lineHeight = 116.sp, letterSpacing = (-0.05).em),
@@ -346,13 +466,13 @@ private fun BoxScope.WorkoutHud(
                 },
             )
             QiapText(
-                "/ $TARGET",
+                "/ $target",
                 style = type.displayCompact.copy(fontSize = 28.sp, lineHeight = 28.sp),
                 color = colors.ink3,
                 modifier = Modifier.padding(bottom = 14.dp),
             )
         }
-        QiapProgressBar(reps / TARGET.toFloat())
+        QiapProgressBar((reps / target.toFloat()).coerceIn(0f, 1f))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(QiapSpacing.xs), content = footer)
     }
 }

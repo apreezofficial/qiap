@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node scripts/gen-exercises.mjs && next dev",
+    "build": "node scripts/gen-exercises.mjs && next build",
     "start": "npx serve out",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "node scripts/gen-exercises.mjs && tsc --noEmit",
+    "gen:exercises": "node scripts/gen-exercises.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.5",

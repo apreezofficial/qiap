@@ -2,7 +2,7 @@ name: Android
 
 on:
   push:
-    branches: [main]
+    branches: [main, "phase-*"]
     paths-ignore: ["web/**", "**.md"]
   pull_request:
     paths-ignore: ["web/**", "**.md"]
@@ -31,7 +31,7 @@ jobs:
       # Caches Gradle deps and wrapper; only main writes the cache so PRs can't poison it.
       - uses: gradle/actions/setup-gradle@v6
         with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/phase-') }}
 
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest --console=plain
@@ -66,6 +66,18 @@ jobs:
             echo "::error::APK is ${mb} MB, over the 40 MB budget"; exit 1
           fi
 
+
+      # details.md Phase 6 "APK size audit": what is actually in the APK, biggest first.
+      - name: APK size breakdown
+        run: |
+          apk=app/build/outputs/apk/release/app-release.apk
+          {
+            echo "### What's in the release APK (largest 15, compressed bytes)"
+            echo '```'
+            unzip -v "$apk" | awk 'NR>3 && $1 ~ /^[0-9]+$/ {print $3, $8}' | sort -nr | head -15 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload release APK
         uses: actions/upload-artifact@v7
         with:
@@ -82,6 +94,33 @@ jobs:
         with:
           name: qiap-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+      # Play takes bundles, not APKs. Signed with the upload key when the secrets exist (see
+      # docs/RELEASE.md); otherwise signed with the debug key, which Play will reject.
+      - name: Release bundle (AAB)
+        env:
+          KEYSTORE_B64: ${{ secrets.QIAP_KEYSTORE_B64 }}
+          QIAP_KEYSTORE_PASSWORD: ${{ secrets.QIAP_KEYSTORE_PASSWORD }}
+          QIAP_KEY_ALIAS: ${{ secrets.QIAP_KEY_ALIAS }}
+          QIAP_KEY_PASSWORD: ${{ secrets.QIAP_KEY_PASSWORD }}
+          QIAP_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            export QIAP_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
+            echo "AAB signed with the upload key (version code $QIAP_VERSION_CODE)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice::No upload-key secrets set. The AAB is debug-signed and cannot be uploaded to Play."
+            echo "AAB is debug-signed (no upload key secrets). Not for the store." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          ./gradlew :app:bundleRelease --console=plain
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: qiap-release-aab
+          path: app/build/outputs/bundle/release/app-release.aab
           retention-days: 14
 
       - name: Upload test reports

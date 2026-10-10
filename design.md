@@ -43,8 +43,8 @@ Colors in this file are estimated from screenshots. Treat them as starting value
 | `border` | `#ECECEE` | 1px hairlines, card outlines |
 | `ink` | `#111114` | headlines, primary text, dark pill |
 | `ink-2` | `#6B6B72` | body text, headline accent phrase |
-| `ink-3` | `#9A9AA2` | captions, dates, placeholders |
-| `sky` | `#4A90E2` | active tab, small links ("Get Access"), toggles |
+| `ink-3` | `#74747E` | captions, dates, placeholders (was #9A9AA2; deepened to pass contrast, Phase 6) |
+| `sky` | `#2B74D6` | active tab, small links ("Get Access"), toggles (was #4A90E2; white text on it was 3.3:1, now 4.6:1, Phase 6) |
 | `sky-strong` | `#1A56F0` | "Most Popular"-type badge only |
 | `cinnabar` | `#F2542D` | **ringing screen, seal stamp, alarm-on state**. Not a general accent. |
 | `jade` | `#34C38F` | good form, checks, success |

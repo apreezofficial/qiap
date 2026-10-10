@@ -13,8 +13,9 @@ android {
         applicationId = "app.qiap"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.0.1"
+        // CI passes its run number so every uploaded bundle has a higher code than the last.
+        versionCode = (System.getenv("QIAP_VERSION_CODE") ?: "1").toInt()
+        versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // MediaPipe ships ~10 MB of native code per ABI. Real phones are ARM; x86_64 is added
         // for debug only so the emulator works. Keeps the release APK inside the 40 MB budget.
@@ -23,6 +24,21 @@ android {
 
     // MediaPipe memory-maps the model; a compressed asset would have to be copied first.
     androidResources { noCompress += "task" }
+
+    // Store builds are signed with the upload key, which is never in the repo: CI decodes it from a
+    // secret and exports these variables (docs/RELEASE.md). Without them, release falls back to the
+    // debug key so the APK still installs for testing, but Play will not accept it.
+    signingConfigs {
+        val keystore = System.getenv("QIAP_KEYSTORE_FILE")
+        if (keystore != null && file(keystore).isFile) {
+            create("upload") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("QIAP_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("QIAP_KEY_ALIAS")
+                keyPassword = System.getenv("QIAP_KEY_PASSWORD")
+            }
+        }
+    }
 
     buildTypes {
         debug {
@@ -35,8 +51,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // TODO(release): replace with the upload key before any store build.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
         }
     }
 
@@ -60,6 +75,8 @@ dependencies {
     implementation(libs.androidx.navigation3.ui)
     // Required by Navigation 3 to save/restore typed route keys.
     implementation(libs.kotlinx.serialization.core)
+    // Alarms and history are persisted as small JSON files (no database needed for a handful of rows).
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.profileinstaller)
 
     implementation(platform(libs.androidx.compose.bom))
@@ -74,6 +91,8 @@ dependencies {
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
+    // Video proof (details.md §10): record the workout alongside the preview. Same camerax version.
+    implementation(libs.androidx.camera.video)
     // Compose viewfinder for the preview, so the workout screen stays pure Compose.
     implementation(libs.androidx.camera.compose)
     // On-device pose landmarks (CLAUDE.md stack), behind the PoseEngine interface.

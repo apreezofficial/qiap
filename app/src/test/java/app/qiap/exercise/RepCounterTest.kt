@@ -159,7 +159,7 @@ class RepCounterTest {
 
     @Test
     fun catalogThresholdsAreOrdered() {
-        for (s in ExerciseCatalog.all) {
+        for (s in ExerciseCatalog.all.filter { it.kind == Kind.CYCLE || it.kind == Kind.ALTERNATING }) {
             assertTrue(s.id, s.goodBelow <= s.downBelow && s.downBelow < s.upAbove)
         }
     }

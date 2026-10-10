@@ -44,11 +44,11 @@ class DesignTokensTest {
 
     @Test
     fun textContrastMeetsWcag() {
-        // Body text: AA (4.5). Captions (ink3) are decorative/secondary; AA-large (3.0).
+        // Body text: AA (4.5). Captions (ink3) carry real information (times, hints): ~AA too.
         for (c in listOf(DawnColors, NightColors)) {
             assertContrast(c.ink, c.bg, 7.0)
             assertContrast(c.ink2, c.bg, 4.5)
-            assertContrast(c.ink3, c.bg, 2.5)
+            assertContrast(c.ink3, c.bg, 4.0) // raised from 2.5 in the Phase 6 accessibility pass
             assertContrast(c.onInk, c.ink, 7.0)
         }
         // Giant ink time on Cinnabar.
@@ -56,9 +56,12 @@ class DesignTokensTest {
     }
 
     @Test
-    fun activeTabTextOnSkyIsAtLeastLargeTextContrast() {
-        // White on #4A90E2 is ~3.3:1: fine for bold/large, below AA for 13sp. Flagged in the Phase 0 notes.
-        assertContrast(DawnColors.onAccent, DawnColors.sky, 3.0)
+    fun activeTabTextOnSkyMeetsAA() {
+        // Sky was #4A90E2 (white on it is ~3.3:1, below AA for 13sp text). Deepened to #2B74D6 in the
+        // Phase 6 accessibility pass: ~4.6:1, so the 13sp active-tab label passes AA.
+        assertContrast(DawnColors.onAccent, DawnColors.sky, 4.5)
+        // Sky also serves as link/icon colour on the white page.
+        assertContrast(DawnColors.sky, DawnColors.bg, 4.5)
     }
 
     @Test

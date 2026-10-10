@@ -11,22 +11,28 @@ import { exercises } from "@/lib/exercises";
 export function Proof() {
   const holds = exercises.filter((e) => e.kind === "hold").length;
   const facts = [
-    { n: String(exercises.length), label: `exercises the camera can count, ${holds} of them timed holds` },
-    { n: "0", label: "network permissions. The app cannot send anything anywhere" },
-    { n: "27 MB", label: "for the whole app, pose model included" },
+    { n: String(exercises.length), short: "exercises", long: ` the camera can count, ${holds} of them timed holds` },
+    { n: "0", short: "network permissions", long: ". The app cannot send anything anywhere" },
+    { n: "27", unit: "MB", short: "for the whole app", long: ", pose model included" },
   ];
   return (
-    <section aria-label="In numbers" className="mx-auto max-w-[1200px] px-5 py-16 sm:px-8 sm:py-24">
-      <dl className="grid gap-12 sm:grid-cols-3 sm:gap-8">
-        {facts.map((f) => (
-          <Reveal key={f.n}>
-            <div>
-              <dt className="h-display tnum text-[88px] text-fg sm:text-[104px]">{f.n}</dt>
-              <dd className="mt-3 max-w-[260px] text-[16px] leading-relaxed text-fg-2">{f.label}</dd>
+    <section aria-label="In numbers" className="mx-auto max-w-[1200px] px-3 py-8 sm:px-8 sm:py-24">
+      <Reveal>
+        <dl className="grid grid-cols-3 gap-px border border-hair bg-hair sm:gap-8 sm:border-0 sm:bg-transparent">
+          {facts.map((f) => (
+            <div key={f.short} className="bg-page px-2 py-6 text-center sm:p-0 sm:text-left">
+              <dt className="h-display tnum whitespace-nowrap text-[46px] leading-none sm:text-[104px]">
+                {f.n}
+                {"unit" in f ? <span className="ml-1 text-[0.42em] text-fg-2">{f.unit}</span> : null}
+              </dt>
+              <dd className="mt-2 text-[12px] leading-snug text-fg-2 sm:mt-3 sm:max-w-[260px] sm:text-[16px] sm:leading-relaxed">
+                {f.short}
+                <span className="hidden sm:inline">{f.long}</span>
+              </dd>
             </div>
-          </Reveal>
-        ))}
-      </dl>
+          ))}
+        </dl>
+      </Reveal>
     </section>
   );
 }
@@ -166,26 +172,31 @@ export function Rows() {
 /* ───────── four steps ───────── */
 
 const steps = [
-  { n: "1", pose: "stand", title: "Set it", body: "A time, the days, and a workout. Or a routine of three, or a surprise from a preset." },
-  { n: "2", pose: "squat", title: "It rings", body: "The volume climbs over the lock screen. Tap start workout." },
-  { n: "3", pose: "arms-up", title: "Move", body: "A hand gesture first, then the reps, with the skeleton drawn live on top of you." },
-  { n: "4", pose: "plank", title: "Stamp", body: "Stand still, one last gesture, and the alarm is off. Seal earned." },
+  { n: "1", pose: "stand", title: "Set it", short: "Time, days, workout. Or a routine, or a surprise.", body: "A time, the days, and a workout. Or a routine of three, or a surprise from a preset." },
+  { n: "2", pose: "squat", title: "It rings", short: "Volume climbs over the lock screen.", body: "The volume climbs over the lock screen. Tap start workout." },
+  { n: "3", pose: "arms-up", title: "Move", short: "A hand gesture, then reps, skeleton live.", body: "A hand gesture first, then the reps, with the skeleton drawn live on top of you." },
+  { n: "4", pose: "plank", title: "Stamp", short: "Stand still, one last gesture. Seal earned.", body: "Stand still, one last gesture, and the alarm is off. Seal earned." },
 ] as const;
 
 export function Steps() {
   return (
     <section aria-labelledby="steps-h" className="mx-auto max-w-[1280px] p-2 sm:p-4">
-      <div className="panel bg-panel px-6 py-16 sm:px-12 sm:py-24">
-        <h2 id="steps-h" className="h-display mx-auto max-w-[760px] text-center text-[44px] sm:text-[64px]">
+      <div className="panel bg-panel px-4 py-12 sm:px-12 sm:py-24">
+        <h2 id="steps-h" className="h-display mx-auto max-w-[760px] text-center text-[34px] sm:text-[64px]">
           From alarm to seal in four moves.
         </h2>
-        <ol className="mt-16 grid gap-14 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
+        <ol className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 sm:mt-16 lg:grid-cols-4 lg:gap-8">
           {steps.map((s) => (
             <li key={s.n}>
-              <Skeleton pose={s.pose} className="h-[190px] w-auto" />
-              <p className="h-display tnum mt-6 text-[96px] text-fg-2">{s.n}</p>
-              <h3 className="mt-2 text-[26px] font-medium tracking-[-0.02em]">{s.title}</h3>
-              <p className="mt-3 max-w-[280px] text-[16px] leading-relaxed text-fg-2">{s.body}</p>
+              <Skeleton pose={s.pose} className="h-[96px] w-auto sm:h-[190px]" />
+              <div className="mt-3 flex items-baseline gap-2 sm:mt-6 sm:block">
+                <p className="h-display tnum text-[40px] leading-none text-fg-2 sm:text-[96px]">{s.n}</p>
+                <h3 className="text-[19px] font-medium tracking-[-0.02em] sm:mt-2 sm:text-[26px]">{s.title}</h3>
+              </div>
+              <p className="mt-2 text-[13px] leading-snug text-fg-2 sm:mt-3 sm:max-w-[280px] sm:text-[16px] sm:leading-relaxed">
+                <span className="sm:hidden">{s.short}</span>
+                <span className="hidden sm:inline">{s.body}</span>
+              </p>
             </li>
           ))}
         </ol>

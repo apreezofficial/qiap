@@ -2,11 +2,12 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Qiap — the alarm that only stops when you do the reps",
+  metadataBase: new URL("https://qiap.app"),
+  title: "Qiap: the alarm that only stops when you do the reps",
   description:
-    "Qiap is an Android alarm that keeps ringing until your camera confirms you've done the workout. On-device pose tracking, 52 exercises, no account needed.",
+    "An Android alarm that keeps ringing until your camera sees you do the workout. On-device pose tracking, 52 exercises, no account, no internet permission.",
   openGraph: {
-    title: "Qiap — Wake up. Prove it.",
+    title: "Qiap. Wake up. Prove it.",
     description: "The alarm that only shuts up after you do the reps.",
     type: "website",
   },
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#ffffff",
+  themeColor: "#0d0d0f",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

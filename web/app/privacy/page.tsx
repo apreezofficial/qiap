@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { Nav } from "@/components/Nav";
-import { Footer } from "@/components/Footer";
+import { PageShell, PageTitle } from "@/components/PageShell";
 
 export const metadata: Metadata = {
-  title: "Privacy policy · Qiap",
+  title: "Privacy · Qiap",
   description: "Qiap runs entirely on your phone. No account, no ads, no analytics, and no internet permission.",
 };
 
@@ -25,7 +24,7 @@ const sections: { title: string; body: string[] }[] = [
   {
     title: "Video proof (optional)",
     body: [
-      "If you turn on Video proof for an alarm, Qiap records your workout to a video file in the app's private storage on your phone. It is off by default and has no sound. You choose how long it is kept (7, 14 or 30 days, 14 by default) and then Qiap deletes it. Other apps cannot read it. It is only shared if you tap Share and pick where it goes.",
+      "If you turn on video proof for an alarm, Qiap records your workout to a video file in the app's private storage on your phone. It is off by default and has no sound. You choose how long it is kept (7, 14 or 30 days, 14 by default) and then Qiap deletes it. Other apps cannot read it. It is only shared if you tap Share and pick where it goes.",
     ],
   },
   {
@@ -51,9 +50,15 @@ const sections: { title: string; body: string[] }[] = [
     ],
   },
   {
-    title: "Crash logs",
+    title: "Crash notes",
     body: [
       "If the app crashes, a short error note is saved on your phone. It is never sent automatically. You can choose to share it with us from Setup if you want help.",
+    ],
+  },
+  {
+    title: "This website",
+    body: [
+      "This site sets no cookies, runs no analytics and loads no third-party scripts. If you email us, we only have what you wrote.",
     ],
   },
   {
@@ -78,27 +83,23 @@ const sections: { title: string; body: string[] }[] = [
 
 export default function Privacy() {
   return (
-    <>
-      <Nav />
-      <main className="container-qiap max-w-[760px] py-16">
-        <p className="text-[13px] text-ink-3">Last updated {UPDATED}</p>
-        <h1 className="mt-2 text-[40px] font-medium leading-[1.05] tracking-[-0.03em] md:text-[56px]">
-          Privacy policy. <span className="text-ink-2">Short, because there is little to tell.</span>
-        </h1>
-        <div className="mt-12 space-y-10">
-          {sections.map((s) => (
-            <section key={s.title}>
-              <h2 className="text-[22px] font-medium tracking-[-0.02em]">{s.title}</h2>
-              <div className="mt-3 space-y-3 text-[16px] leading-relaxed text-ink-2">
-                {s.body.map((p) => (
-                  <p key={p}>{p}</p>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </main>
-      <Footer />
-    </>
+    <PageShell>
+      <p className="text-[14px] text-fg-2">Last updated {UPDATED}</p>
+      <div className="mt-3">
+        <PageTitle note="Short, because there is very little to tell.">Privacy.</PageTitle>
+      </div>
+      <div className="mt-16 space-y-14">
+        {sections.map((s) => (
+          <section key={s.title}>
+            <h2 className="text-[26px] font-medium tracking-[-0.02em]">{s.title}</h2>
+            <div className="mt-4 space-y-3 text-[18px] leading-relaxed text-fg-2">
+              {s.body.map((p) => (
+                <p key={p}>{p}</p>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </PageShell>
   );
 }

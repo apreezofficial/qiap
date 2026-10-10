@@ -89,14 +89,14 @@ export function RingingScreen() {
       <div className="sunpulse absolute left-1/2 top-[84px] size-[210px] -translate-x-1/2 rounded-full bg-white/25" />
       <div className="sunpulse absolute left-1/2 top-[114px] size-[150px] -translate-x-1/2 rounded-full bg-white/30 [animation-delay:400ms]" />
       <div className="relative flex h-full flex-col items-center px-5 pt-[120px] text-center">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink/70">Rise</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink/70">qiap</p>
         <p className="tnum mt-1 text-[78px] font-semibold leading-none tracking-[-0.05em]">6:30</p>
         <p className="mt-2 text-[13px] font-medium text-ink/80">15 squats to silence me.</p>
         <div className="mt-auto pb-8">
           <span className="inline-flex h-12 items-center rounded-full bg-white px-8 text-[14px] font-semibold shadow-[0_10px_24px_rgba(0,0,0,0.2)]">
             Start workout
           </span>
-          <p className="mt-3 text-[9px] font-medium text-ink/60">Can&apos;t do it today? Hold for backup</p>
+          <p className="mt-3 text-[9px] font-medium text-ink/60">Can&apos;t do it today? Hold for 3 s</p>
         </div>
       </div>
     </div>

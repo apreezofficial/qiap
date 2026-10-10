@@ -2,11 +2,21 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/plus-jakarta-sans";
 
-/* ───────── Qiap design tokens (design.md §3–§5) ───────── */
+/* Qiap tokens. The `ink`/`line`/`wash` family is the light Dawn palette from design.md: it paints
+   the phone screens drawn on the page. `page`/`panel`/`fg`/`hair` paint the site around them. */
 @theme {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-app: "Plus Jakarta Sans Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
 
+  /* site chrome (dark) */
+  --color-page: #0d0d0f;
+  --color-panel: #17171a;
+  --color-panel-2: #202024;
+  --color-hair: #2c2c31;
+  --color-fg: #f4efe6;
+  --color-fg-2: #a09b92;
+
+  /* Dawn palette (phone screens + the sky panel) */
   --color-bg: #ffffff;
   --color-wash: #eef5ff;
   --color-wash-2: #dcebff;
@@ -14,7 +24,7 @@
   --color-line: #ececee;
   --color-ink: #111114;
   --color-ink-2: #6b6b72;
-  --color-ink-3: #9a9aa2;
+  --color-ink-3: #74747e;
   --color-sky: #2b74d6;
   --color-sky-strong: #1a56f0;
   --color-cinnabar: #f2542d;
@@ -26,13 +36,11 @@
   --color-night-2: #202024;
   --color-paper: #f4efe6;
 
-  --radius-card: 24px;
-  --radius-card-sm: 16px;
-  --radius-shell: 32px;
+  /* One radius for every big surface. Buttons are pills. Nothing else is rounded on purpose. */
+  --radius-panel: 32px;
 
   --shadow-soft: 0 8px 24px rgba(17, 17, 20, 0.06);
-  --shadow-pill: 0 6px 16px rgba(17, 17, 20, 0.25);
-  --shadow-phone: 0 30px 60px -20px rgba(17, 17, 20, 0.28);
+  --shadow-phone: 0 40px 80px -24px rgba(0, 0, 0, 0.55);
 
   --ease-qiap: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -43,8 +51,8 @@ html {
 }
 
 body {
-  background: var(--color-bg);
-  color: var(--color-ink);
+  background: var(--color-page);
+  color: var(--color-fg);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -52,153 +60,88 @@ body {
 }
 
 ::selection {
-  background: var(--color-wash-2);
+  background: var(--color-cinnabar);
+  color: var(--color-ink);
 }
 
-/* ───────── Reusable pieces ───────── */
 .tnum {
   font-variant-numeric: tabular-nums;
 }
 
+/* Display type: medium weight, tight tracking. Size and space do the work, not boldness. */
 .h-display {
   font-weight: 500;
-  letter-spacing: -0.03em;
-  line-height: 1.06;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
 }
 
-/* two-tone headline: .accent is the gray phrase */
-.h-display .accent {
-  color: var(--color-ink-2);
+.panel {
+  border-radius: var(--radius-panel);
 }
 
-.container-qiap {
-  width: 100%;
-  max-width: 1120px;
-  margin-inline: auto;
-  padding-inline: 20px;
-}
-
-.section {
-  padding-block: 64px;
-}
-@media (min-width: 768px) {
-  .section {
-    padding-block: 96px;
-  }
-}
-
-/* pills */
+/* Buttons: the only pills on the site. */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
   height: 52px;
-  padding-inline: 24px;
+  padding-inline: 26px;
   border-radius: 9999px;
   font-size: 15px;
   font-weight: 500;
   white-space: nowrap;
   transition:
     transform 200ms var(--ease-qiap),
-    box-shadow 200ms var(--ease-qiap),
-    background-color 200ms var(--ease-qiap);
+    background-color 200ms var(--ease-qiap),
+    color 200ms var(--ease-qiap);
 }
 .btn:active {
   transform: scale(0.97);
 }
-.btn-primary {
+.btn-cta {
+  background: var(--color-cinnabar);
+  color: var(--color-ink);
+}
+.btn-cta:hover {
+  background: #ff6a44;
+}
+.btn-dark {
   background: var(--color-ink);
   color: #fff;
-  box-shadow: var(--shadow-pill);
 }
-.btn-primary:hover {
-  background: #26262c;
+.btn-dark:hover {
+  background: #2a2a31;
 }
-.btn-glass {
-  color: var(--color-ink);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(226, 238, 255, 0.85));
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow:
-    0 6px 16px rgba(74, 144, 226, 0.14),
-    inset 0 1px 0 #fff;
-}
-.btn-glass:hover {
-  background: linear-gradient(180deg, #fff, rgba(214, 231, 255, 0.95));
+.btn-outline {
+  border: 1.5px solid currentColor;
 }
 .btn-sm {
   height: 44px;
-  padding-inline: 18px;
+  padding-inline: 20px;
   font-size: 14px;
 }
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 36px;
-  padding-inline: 14px;
-  border-radius: 9999px;
-  background: #fff;
-  border: 1px solid var(--color-line);
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(17, 17, 20, 0.04);
+.link-under {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
 }
 
-.card {
-  background: #fff;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
-}
-
-/* faint dot grid that fades out downward (hero backdrop) */
-.dotgrid {
-  background-image: radial-gradient(rgba(17, 17, 20, 0.07) 1px, transparent 1px);
-  background-size: 14px 14px;
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 85%);
-  mask-image: linear-gradient(to bottom, #000 0%, transparent 85%);
-}
-
-/* the single reusable sky wash (design.md §9). Disable by removing .sky-wash */
+/* The one soft background effect (design.md): a pale sky arch. */
 .sky-wash {
   background:
-    radial-gradient(60% 55% at 50% 0%, var(--color-wash-2) 0%, rgba(220, 235, 255, 0) 70%),
-    radial-gradient(40% 40% at 15% 30%, rgba(238, 245, 255, 0.9) 0%, rgba(238, 245, 255, 0) 70%),
-    radial-gradient(40% 40% at 85% 35%, rgba(238, 245, 255, 0.9) 0%, rgba(238, 245, 255, 0) 70%);
+    radial-gradient(70% 60% at 50% 0%, var(--color-wash-2) 0%, rgba(220, 235, 255, 0) 70%),
+    var(--color-wash);
 }
 
-.fade-x {
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
-  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+.no-scrollbar {
+  scrollbar-width: none;
 }
-.fade-b {
-  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
-/* marquee */
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-.marquee-track {
-  display: flex;
-  width: max-content;
-  gap: 12px;
-  animation: marquee 38s linear infinite;
-}
-.marquee:hover .marquee-track {
-  animation-play-state: paused;
-}
-
-/* slow pulse for the "sun" on the ringing screen */
+/* ringing sun: slow pulse, opacity and scale only */
 @keyframes sunpulse {
   0%,
   100% {
@@ -207,14 +150,14 @@ body {
   }
   50% {
     opacity: 1;
-    transform: scale(1.06);
+    transform: scale(1.04);
   }
 }
 .sunpulse {
   animation: sunpulse 3s ease-in-out infinite;
 }
 
-/* seal stamp on scroll-in */
+/* seal stamps in when it scrolls into view */
 @keyframes stamp {
   0% {
     transform: scale(1.6) rotate(-10deg);
@@ -232,7 +175,6 @@ body {
 .stamp {
   animation: stamp 400ms var(--ease-qiap) both;
 }
-/* inside a Reveal, wait until it scrolls into view before stamping */
 .reveal .stamp {
   animation-play-state: paused;
 }
@@ -240,7 +182,6 @@ body {
   animation-play-state: running;
 }
 
-/* reveal on scroll */
 .reveal {
   opacity: 0;
   transform: translateY(16px);
@@ -253,19 +194,34 @@ body {
   transform: none;
 }
 
-/* hide scrollbars on horizontal scrollers */
-.no-scrollbar {
-  scrollbar-width: none;
+/* mobile menu without JavaScript */
+details.menu > summary {
+  list-style: none;
+  cursor: pointer;
 }
-.no-scrollbar::-webkit-scrollbar {
+details.menu > summary::-webkit-details-marker {
   display: none;
+}
+
+/* Questions page: native disclosure, no JavaScript */
+details.q > summary {
+  list-style: none;
+  cursor: pointer;
+}
+details.q > summary::-webkit-details-marker {
+  display: none;
+}
+details.q[open] .q-plus {
+  transform: rotate(45deg);
+}
+.q-plus {
+  transition: transform 200ms var(--ease-qiap);
 }
 
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
-  .marquee-track,
   .sunpulse,
   .stamp {
     animation: none;
